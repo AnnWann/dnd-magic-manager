@@ -51,7 +51,22 @@ Observação: `npm run dev` (ou `npm run dev:vite`) roda só o Vite (sem a pasta
 
 O botão **“Traduzir PT-BR”** usa o endpoint serverless `/api/translate`, que por padrão chama o LibreTranslate.
 
-- `TRANSLATE_API_URL` (opcional): URL do endpoint de tradução. Padrão: `https://libretranslate.de/translate`
+O endpoint suporta dois provedores:
+
+- **Google Cloud Translation API v2** (recomendado): mais estável, mas normalmente exige billing.
+- **LibreTranslate**: útil para self-host/alternativas compatíveis.
+
+### Variáveis de ambiente
+
+- `TRANSLATE_PROVIDER` (opcional): `google` ou `libre`. Se não for definido, o app prefere `google` quando `GOOGLE_TRANSLATE_API_KEY` estiver presente.
+
+**Google**
+
+- `GOOGLE_TRANSLATE_API_KEY` (obrigatório para `google`): API key do Google Cloud com a **Cloud Translation API** habilitada.
+
+**LibreTranslate**
+
+- `TRANSLATE_API_URL` (opcional): URL do endpoint de tradução. Padrão: `https://de.libretranslate.com/translate`
 - `TRANSLATE_API_KEY` (opcional): chave da API, se o seu provedor exigir.
 
 ## Expanding the ESLint configuration

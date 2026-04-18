@@ -5,6 +5,11 @@ import { Button } from './ui/Button'
 import { Card, CardContent, CardHeader } from './ui/Card'
 import { Input } from './ui/Input'
 
+type TranslateStatus =
+  | { kind: 'idle' }
+  | { kind: 'loading'; spellIndex: string }
+  | { kind: 'error'; spellIndex: string; message: string }
+
 export function AddSpellsCard(props: {
   spellList: DndApiRef[] | null
   spellListError: string | null
@@ -14,6 +19,8 @@ export function AddSpellsCard(props: {
   activeCharacter: Character
   activeCharacterSpellsSet: Set<string>
   addSpellToActive: (spell: DndApiRef) => Promise<void>
+  addSpellToActiveTranslated: (spell: DndApiRef) => Promise<void>
+  translateStatus: TranslateStatus
 }) {
   const {
     spellList,
@@ -24,6 +31,8 @@ export function AddSpellsCard(props: {
     activeCharacter,
     activeCharacterSpellsSet,
     addSpellToActive,
+    addSpellToActiveTranslated,
+    translateStatus,
   } = props
 
   return (
@@ -56,24 +65,33 @@ export function AddSpellsCard(props: {
 
         {unaddedSearch.trim() ? (
           <div className="mt-3 overflow-auto rounded-lg border border-border">
-            <table className="w-full min-w-[560px] border-collapse">
+            <table className="w-full min-w-[720px] border-collapse">
               <thead className="bg-accentBg">
                 <tr className="text-left text-xs text-text">
                   <th className="p-2">Magia</th>
                   <th className="p-2">Auto “conjurar como”</th>
+                  <th className="p-2"></th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {unaddedResults.length === 0 ? (
                   <tr>
-                    <td className="p-3 text-sm text-text" colSpan={3}>
+                    <td className="p-3 text-sm text-text" colSpan={4}>
                       Sem resultados.
                     </td>
                   </tr>
                 ) : (
                   unaddedResults.map((s) => {
                     const auto = activeCharacter.classes[0]
+                    const isBusy =
+                      translateStatus.kind === 'loading' &&
+                      translateStatus.spellIndex === s.index
+                    const rowError =
+                      translateStatus.kind === 'error' &&
+                      translateStatus.spellIndex === s.index
+                        ? translateStatus.message
+                        : null
                     return (
                       <tr
                         key={s.index}
@@ -90,6 +108,26 @@ export function AddSpellsCard(props: {
                           >
                             Adicionar
                           </Button>
+                        </td>
+
+                        <td className="p-2">
+                          <div className="flex flex-col items-start gap-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void addSpellToActiveTranslated(s)}
+                              disabled={
+                                activeCharacterSpellsSet.has(s.index) ||
+                                translateStatus.kind === 'loading'
+                              }
+                              title="Traduz e já salva em PT-BR no personagem"
+                            >
+                              {isBusy ? 'Traduzindo…' : 'Traduzir e adicionar'}
+                            </Button>
+                            {rowError ? (
+                              <div className="text-[11px] text-text">{rowError}</div>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     )

@@ -145,6 +145,8 @@ export function AddedSpellsCard(props: {
   const [openUpcastSpellIndex, setOpenUpcastSpellIndex] = useState<string | null>(null)
   const [openMaterialSpellIndex, setOpenMaterialSpellIndex] = useState<string | null>(null)
   const [openDetailsSpellIndex, setOpenDetailsSpellIndex] = useState<string | null>(null)
+  const [openDamageInfoSpellIndex, setOpenDamageInfoSpellIndex] = useState<string | null>(null)
+  const [openSourceInfoSpellIndex, setOpenSourceInfoSpellIndex] = useState<string | null>(null)
 
   const effectTargetOptions: Array<{ value: SpellEffectTarget; label: string }> = [
     { value: 'ac', label: 'CA' },
@@ -550,6 +552,9 @@ export function AddedSpellsCard(props: {
                       ? `Limite de preparadas atingido (${prepCount}/${prepLimit}).`
                       : `Preparadas: ${prepCount}/${prepLimit}`
 
+                  const isDamageInfoOpen = openDamageInfoSpellIndex === entry.spellIndex
+                  const isSourceInfoOpen = openSourceInfoSpellIndex === entry.spellIndex
+
                   return (
                     <Fragment key={entry.spellIndex}>
                       <tr className="border-t border-border text-sm odd:bg-[color:var(--social-bg)] hover:bg-accentBg">
@@ -598,11 +603,7 @@ export function AddedSpellsCard(props: {
                                 {displayName}
                               </span>
                               {!allowedSchool ? badge('Fora da escola') : null}
-                              {entry.displayNamePt?.trim() ? badge('PT') : null}
                             </div>
-                            {entry.displayNamePt?.trim() ? (
-                              <div className="mt-0.5 text-xs text-text">Original: {entry.spellName}</div>
-                            ) : null}
                             {err ? <div className="mt-1 text-xs text-text">{err}</div> : null}
                           </button>
                         </td>
@@ -670,36 +671,72 @@ export function AddedSpellsCard(props: {
                           </div>
 
                           <div className="hidden md:block">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono">{damageEstimate}</span>
+                            <div
+                              className="cursor-pointer select-none"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenDamageInfoSpellIndex((prev) =>
+                                  prev === entry.spellIndex ? null : entry.spellIndex,
+                                )
+                                setOpenUpcastSpellIndex(null)
+                              }}
+                              aria-expanded={isDamageInfoOpen}
+                              title={
+                                isDamageInfoOpen
+                                  ? 'Ocultar detalhes'
+                                  : 'Mostrar detalhes'
+                              }
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono">{damageEstimate}</span>
 
-                              {spellBaseLevel === 0 ? null : (
-                                <Select
-                                  className="h-8 !w-[92px] shrink-0 px-2 text-xs"
-                                  value={effectiveSlot}
-                                  onChange={(e) => {
-                                    const castSlotLevel = Number(e.target.value) as MagicCircleLevel
-                                    updateCharacter(activeCharacter.id, (c) => ({
-                                      ...c,
-                                      spells: c.spells.map((s) =>
-                                        s.spellIndex === entry.spellIndex
-                                          ? { ...s, castSlotLevel }
-                                          : s,
-                                      ),
-                                    }))
-                                  }}
-                                  title="Círculo usado (para dano/escala)"
-                                >
-                                  {slotOptions.map((lvl) => (
-                                    <option key={lvl} value={lvl}>
-                                      Círc. {lvl}
-                                    </option>
-                                  ))}
-                                </Select>
-                              )}
+                                {spellBaseLevel === 0 ? null : (
+                                  <Select
+                                    className="h-8 !w-[92px] shrink-0 px-2 text-xs"
+                                    value={effectiveSlot}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const castSlotLevel = Number(e.target.value) as MagicCircleLevel
+                                      updateCharacter(activeCharacter.id, (c) => ({
+                                        ...c,
+                                        spells: c.spells.map((s) =>
+                                          s.spellIndex === entry.spellIndex
+                                            ? { ...s, castSlotLevel }
+                                            : s,
+                                        ),
+                                      }))
+                                    }}
+                                    title="Círculo usado (para dano/escala)"
+                                  >
+                                    {slotOptions.map((lvl) => (
+                                      <option key={lvl} value={lvl}>
+                                        Círc. {lvl}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                )}
+
+                                {(combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setOpenDamageInfoSpellIndex((prev) =>
+                                        prev === entry.spellIndex ? null : entry.spellIndex,
+                                      )
+                                      setOpenUpcastSpellIndex(null)
+                                    }}
+                                    title={isDamageInfoOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+                                  >
+                                    {isDamageInfoOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+                                  </Button>
+                                ) : null}
+                              </div>
                             </div>
 
-                            {(combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
+                            {isDamageInfoOpen && (combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
                               <div className="relative mt-1">
                                 <div className="flex flex-col items-start gap-1.5">
                                   {combatBadgeNodes}
@@ -739,60 +776,103 @@ export function AddedSpellsCard(props: {
                           </div>
                         </td>
                         <td className="p-2 align-top">
-                          <Select
-                            className="h-9 w-full min-w-0 truncate px-2 py-1 text-sm"
-                            value={entry.sourceType === 'feat' ? '__feat__' : (entry.sourceClassId ?? '')}
-                            onChange={(e) => {
-                              const v = e.target.value
-                              updateCharacter(activeCharacter.id, (c) => ({
-                                ...c,
-                                spells: c.spells.map((s) =>
-                                  s.spellIndex === entry.spellIndex
-                                    ? v === '__feat__'
-                                      ? {
-                                          ...s,
-                                          sourceType: 'feat',
-                                          sourceClassId: undefined,
-                                          featAbility:
-                                            s.featAbility ??
-                                            c.classes.find((x) => x.id === s.sourceClassId)?.castingAbility ??
-                                            c.classes[0]?.castingAbility ??
-                                            'cha',
-                                        }
-                                      : v
+                          <div
+                            className="cursor-pointer select-none"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenSourceInfoSpellIndex((prev) =>
+                                prev === entry.spellIndex ? null : entry.spellIndex,
+                              )
+                            }}
+                            aria-expanded={isSourceInfoOpen}
+                            title={isSourceInfoOpen ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                          >
+                            <Select
+                              className="h-9 w-full min-w-0 truncate px-2 py-1 text-sm"
+                              value={entry.sourceType === 'feat' ? '__feat__' : (entry.sourceClassId ?? '')}
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                updateCharacter(activeCharacter.id, (c) => ({
+                                  ...c,
+                                  spells: c.spells.map((s) =>
+                                    s.spellIndex === entry.spellIndex
+                                      ? v === '__feat__'
                                         ? {
                                             ...s,
-                                            sourceType: 'class',
-                                            sourceClassId: v,
-                                            featName: undefined,
-                                            featAbility: undefined,
-                                          }
-                                        : {
-                                            ...s,
-                                            sourceType: 'class',
+                                            sourceType: 'feat',
                                             sourceClassId: undefined,
-                                            featName: undefined,
-                                            featAbility: undefined,
+                                            featAbility:
+                                              s.featAbility ??
+                                              c.classes.find((x) => x.id === s.sourceClassId)?.castingAbility ??
+                                              c.classes[0]?.castingAbility ??
+                                              'cha',
                                           }
-                                    : s,
-                                ),
-                              }))
-                            }}
-                          >
-                            <option value="">(nenhuma)</option>
-                            <option value="__feat__">Feat</option>
-                            {activeCharacter.classes.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {classDisplayName(c)}
-                              </option>
-                            ))}
-                          </Select>
+                                        : v
+                                          ? {
+                                              ...s,
+                                              sourceType: 'class',
+                                              sourceClassId: v,
+                                              featName: undefined,
+                                              featAbility: undefined,
+                                            }
+                                          : {
+                                              ...s,
+                                              sourceType: 'class',
+                                              sourceClassId: undefined,
+                                              featName: undefined,
+                                              featAbility: undefined,
+                                            }
+                                      : s,
+                                  ),
+                                }))
+                              }}
+                            >
+                              <option value="">(nenhuma)</option>
+                              <option value="__feat__">Feat</option>
+                              {activeCharacter.classes.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {classDisplayName(c)}
+                                </option>
+                              ))}
+                            </Select>
 
-                          {entry.sourceType === 'feat' ? (
+                            <div className="mt-1 text-[11px] text-text">
+                              Atributo:{' '}
+                              {entry.sourceType === 'feat'
+                                ? abilityShort(entry.featAbility ?? 'cha')
+                                : castAs
+                                  ? abilityShort(castAs.castingAbility)
+                                  : '—'}
+                            </div>
+
+                            {entry.sourceType === 'feat' ? (
+                              <div className="mt-1">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenSourceInfoSpellIndex((prev) =>
+                                      prev === entry.spellIndex ? null : entry.spellIndex,
+                                    )
+                                  }}
+                                  title={isSourceInfoOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+                                >
+                                  {isSourceInfoOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+                                </Button>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {isSourceInfoOpen && entry.sourceType === 'feat' ? (
                             <div className="mt-1 grid grid-cols-1 gap-1">
                               <Input
                                 className="h-8 w-full px-2 text-xs"
                                 value={entry.featName ?? ''}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onChange={(e) => {
                                   const featName = e.target.value || undefined
                                   updateCharacter(activeCharacter.id, (c) => ({
@@ -807,6 +887,8 @@ export function AddedSpellsCard(props: {
                               <Select
                                 className="h-8 w-full min-w-0 truncate px-2 text-xs"
                                 value={entry.featAbility ?? 'cha'}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onChange={(e) => {
                                   const featAbility = e.target.value as Ability
                                   updateCharacter(activeCharacter.id, (c) => ({
@@ -825,14 +907,6 @@ export function AddedSpellsCard(props: {
                                 ))}
                               </Select>
                             </div>
-                          ) : null}
-
-                          {castAs ? (
-                            <div className="mt-1 text-[11px] text-text">Atributo: {abilityShort(castAs.castingAbility)}</div>
-                          ) : null}
-
-                          {entry.sourceType === 'feat' ? (
-                            <div className="mt-1 text-[11px] text-text">Atributo: {abilityShort(entry.featAbility ?? 'cha')}</div>
                           ) : null}
                         </td>
                         <td className="p-2 align-top text-text break-words">

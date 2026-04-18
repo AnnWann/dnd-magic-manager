@@ -129,6 +129,40 @@ function App() {
 
   const [translateStatus, setTranslateStatus] = useState((): TranslateStatus => ({ kind: 'idle' }))
 
+  async function translateTexts(args: {
+    texts: string[]
+    source?: string
+    target?: string
+  }): Promise<string[]> {
+    const payload = {
+      texts: args.texts,
+      source: args.source ?? 'en',
+      target: args.target ?? 'pt',
+    }
+
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error(
+          'API /api/translate não encontrada (HTTP 404). Em desenvolvimento local, rode com "vercel dev" (Vite não executa a pasta /api). Em produção, confirme que a função /api/translate foi deployada na Vercel.',
+        )
+      }
+      const text = await res.text().catch(() => '')
+      throw new Error(text || `HTTP ${res.status}`)
+    }
+
+    const data = (await res.json()) as { translations?: unknown; error?: unknown }
+    if (!Array.isArray(data.translations) || data.translations.some((t) => typeof t !== 'string')) {
+      throw new Error('Resposta inválida da API de tradução.')
+    }
+    return data.translations as string[]
+  }
+
   async function translateOfficialToPt(args: {
     spellIndex: string
     desc: string[]
@@ -137,27 +171,7 @@ function App() {
     if (!activeCharacter) return
     setTranslateStatus({ kind: 'loading', spellIndex: args.spellIndex })
     try {
-      const payload = { texts: [...args.desc, ...args.higher], source: 'en', target: 'pt' }
-      const res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error(
-            'API /api/translate não encontrada (HTTP 404). Em desenvolvimento local, rode com "vercel dev" (Vite não executa a pasta /api). Em produção, confirme que a função /api/translate foi deployada na Vercel.',
-          )
-        }
-        const text = await res.text().catch(() => '')
-        throw new Error(text || `HTTP ${res.status}`)
-      }
-      const data = (await res.json()) as { translations?: unknown; error?: unknown }
-      if (!Array.isArray(data.translations) || data.translations.some((t) => typeof t !== 'string')) {
-        throw new Error('Resposta inválida da API de tradução.')
-      }
-
-      const translated = data.translations as string[]
+      const translated = await translateTexts({ texts: [...args.desc, ...args.higher] })
       const descCount = args.desc.length
       const officialDescPt = translated.slice(0, descCount)
       const officialHigherLevelPt = translated.slice(descCount)
@@ -176,6 +190,75 @@ function App() {
       setTranslateStatus({
         kind: 'error',
         spellIndex: args.spellIndex,
+        message: err instanceof Error ? err.message : 'Falha ao traduzir.',
+      })
+    }
+  }
+
+  async function addSpellToActiveTranslated(spellRef: DndApiRef) {
+    if (!activeCharacter) return
+    if (activeCharacterSpellsSet.has(spellRef.index)) return
+
+    setTranslateStatus({ kind: 'loading', spellIndex: spellRef.index })
+    try {
+      const detail = await getSpell(spellRef.index)
+      setSpellDetails((prev) => ({ ...prev, [detail.index]: detail }))
+
+      const characterClasses = activeCharacter.classes
+      const eligible = characterClasses.length
+        ? characterClasses.filter((c) =>
+            detail.classes.some((x) => x.index === spellListClassIndex(c.classIndex)),
+          )
+        : []
+      const sourceClassId = eligible[0]?.id ?? characterClasses[0]?.id
+
+      const desc = detail.desc ?? []
+      const higher = detail.higher_level ?? []
+      const translated = await translateTexts({ texts: [...desc, ...higher] })
+      const descCount = desc.length
+      const officialDescPt = translated.slice(0, descCount)
+      const officialHigherLevelPt = translated.slice(descCount)
+
+      const newSpell: AddedSpell = {
+        spellIndex: detail.index,
+        spellName: detail.name,
+        sourceType: 'class',
+        sourceClassId,
+        addedAt: Date.now(),
+        castSlotLevel: (detail.level as MagicCircleLevel) ?? 1,
+        officialDescPt,
+        officialHigherLevelPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
+      }
+
+      updateCharacter(activeCharacter.id, (c) => ({
+        ...c,
+        spells: [...c.spells, newSpell].sort((a, b) => {
+          const aLevel =
+            a.spellIndex === detail.index
+              ? detail.level
+              : (a.homebrew ? a.homebrew.level : spellDetails[a.spellIndex]?.level)
+          const bLevel =
+            b.spellIndex === detail.index
+              ? detail.level
+              : (b.homebrew ? b.homebrew.level : spellDetails[b.spellIndex]?.level)
+          const aL = aLevel ?? 99
+          const bL = bLevel ?? 99
+          if (aL !== bL) return aL - bL
+
+          const aName = (a.displayNamePt?.trim() || a.spellName).toLocaleLowerCase('pt-BR')
+          const bName = (b.displayNamePt?.trim() || b.spellName).toLocaleLowerCase('pt-BR')
+          const byName = aName.localeCompare(bName, 'pt-BR')
+          if (byName !== 0) return byName
+
+          return a.spellIndex.localeCompare(b.spellIndex)
+        }),
+      }))
+
+      setTranslateStatus({ kind: 'idle' })
+    } catch (err: unknown) {
+      setTranslateStatus({
+        kind: 'error',
+        spellIndex: spellRef.index,
         message: err instanceof Error ? err.message : 'Falha ao traduzir.',
       })
     }
@@ -303,8 +386,23 @@ function App() {
         }
       }
 
-      if (addedPreparedFilter === 'prepared' && !entry.prepared) return false
-      if (addedPreparedFilter === 'notPrepared' && entry.prepared) return false
+      const usesPreparedSystem = (() => {
+        if (entry.sourceType === 'feat') return false
+        const classId = entry.sourceClassId
+        if (!classId) return false
+        return classId in preparedMeta.limitsByClassId
+      })()
+
+      // Filtering semantics:
+      // - "prepared": show both explicitly prepared spells AND spells that don't require preparation (always available)
+      // - "notPrepared": show only spells that use the prepared system and are not marked prepared
+      if (addedPreparedFilter === 'prepared') {
+        if (usesPreparedSystem && !entry.prepared) return false
+      }
+      if (addedPreparedFilter === 'notPrepared') {
+        if (!usesPreparedSystem) return false
+        if (entry.prepared) return false
+      }
       return true
     })
     return filtered.sort((a, b) => {
@@ -319,7 +417,7 @@ function App() {
 
       return a.spellIndex.localeCompare(b.spellIndex)
     })
-  }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, spellDetails])
+  }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, spellDetails, preparedMeta])
 
   const unaddedResults = useMemo(() => {
     if (!spellList) return [] as DndApiRef[]
@@ -1141,6 +1239,8 @@ function App() {
             activeCharacter={activeCharacter}
             activeCharacterSpellsSet={activeCharacterSpellsSet}
             addSpellToActive={addSpellToActive}
+            addSpellToActiveTranslated={addSpellToActiveTranslated}
+            translateStatus={translateStatus}
           />
         </section>
       </main>
