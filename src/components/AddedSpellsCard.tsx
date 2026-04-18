@@ -1,0 +1,1539 @@
+import { Fragment, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import type {
+  Ability,
+  AddedSpell,
+  Character,
+  ConditionKey,
+  DndSpell,
+  HomebrewSpellMechanic,
+  MagicCircleLevel,
+  SpellEffect,
+  SpellEffectMode,
+  SpellEffectTarget,
+} from '../types'
+import {
+  formatSigned,
+  magicCircleOptions,
+  spellAttackBonus,
+  spellSaveDc,
+} from '../lib/rules'
+import { homebrewToDndSpell } from '../lib/homebrew'
+import { estimateSpellDamageDice, upcastRuleLabel } from '../lib/spellDamage'
+import { isAllowedSchoolForClass } from '../lib/spellAccess'
+import { spellMeta } from '../lib/spellMeta'
+import {
+  SCHOOL_NAME_PT,
+  apiClassLabel,
+  classDisplayName,
+  classLabel,
+  schoolLabel,
+} from '../lib/spellLabels'
+import { Button } from './ui/Button'
+import { Card, CardContent, CardHeader } from './ui/Card'
+import { Input } from './ui/Input'
+import { Select } from './ui/Select'
+import { Textarea } from './ui/Textarea'
+import { InlineMarkdown } from './InlineMarkdown'
+import { useI18n } from '../i18n/I18nContext'
+
+type PreparedMeta = {
+  limitsByClassId: Record<string, number>
+  preparedCountByClassId: Record<string, number>
+}
+
+type TranslateStatus =
+  | { kind: 'idle' }
+  | { kind: 'loading'; spellIndex: string }
+  | { kind: 'error'; spellIndex: string; message: string }
+
+function badge(text: string, opts?: { title?: string; limit?: boolean; kind?: 'inline' | 'grid' }) {
+  const base =
+    'items-center rounded-md border border-accentBorder bg-accentBg px-2 py-1 text-xs leading-4 text-textH whitespace-nowrap'
+  const inline = 'inline-flex flex-none'
+  const grid = 'flex w-full min-w-0'
+  const limit = 'max-w-[260px] truncate'
+  const gridLimit = 'truncate'
+  return (
+    <span
+      className={
+        `${base} ${opts?.kind === 'grid' ? grid : inline}${opts?.kind === 'grid' ? ` ${gridLimit}` : opts?.limit ? ` ${limit}` : ''}`
+      }
+      title={opts?.title ?? (opts?.limit ? text : undefined)}
+    >
+      {text}
+    </span>
+  )
+}
+
+const ABILITY_KEYS: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha']
+
+export function AddedSpellsCard(props: {
+  activeCharacter: Character
+  activeCharacterSchools: string[]
+  activeCharacterTotalLevel: number
+  filteredAddedSpells: AddedSpell[]
+  spellDetails: Record<string, DndSpell | undefined>
+  spellDetailsError: Record<string, string | undefined>
+  preparedMeta: PreparedMeta
+
+  addedNameFilter: string
+  setAddedNameFilter: Dispatch<SetStateAction<string>>
+  addedLevelFilter: MagicCircleLevel | 'any'
+  setAddedLevelFilter: Dispatch<SetStateAction<MagicCircleLevel | 'any'>>
+  addedSchoolFilter: string
+  setAddedSchoolFilter: Dispatch<SetStateAction<string>>
+  addedPreparedFilter: 'any' | 'prepared' | 'notPrepared'
+  setAddedPreparedFilter: Dispatch<SetStateAction<'any' | 'prepared' | 'notPrepared'>>
+  addedClassFilter: string
+  setAddedClassFilter: Dispatch<SetStateAction<string>>
+
+  openSpellIndex: string | null
+  setOpenSpellIndex: Dispatch<SetStateAction<string | null>>
+  openSpellTab: 'official' | 'modifiers' | 'headcanon'
+  setOpenSpellTab: Dispatch<SetStateAction<'official' | 'modifiers' | 'headcanon'>>
+
+  translateStatus: TranslateStatus
+  translateOfficialToPt: (args: { spellIndex: string; desc: string[]; higher: string[] }) => Promise<void>
+
+  updateCharacter: (characterId: string, updater: (c: Character) => Character) => void
+  removeSpellFromActive: (spellIndex: string) => void
+}) {
+  const { abilityShort } = useI18n()
+
+  const {
+    activeCharacter,
+    activeCharacterSchools,
+    activeCharacterTotalLevel,
+    filteredAddedSpells,
+    spellDetails,
+    spellDetailsError,
+    preparedMeta,
+    addedNameFilter,
+    setAddedNameFilter,
+    addedLevelFilter,
+    setAddedLevelFilter,
+    addedSchoolFilter,
+    setAddedSchoolFilter,
+    addedPreparedFilter,
+    setAddedPreparedFilter,
+    addedClassFilter,
+    setAddedClassFilter,
+    openSpellIndex,
+    setOpenSpellIndex,
+    openSpellTab,
+    setOpenSpellTab,
+    translateStatus,
+    translateOfficialToPt,
+    updateCharacter,
+    removeSpellFromActive,
+  } = props
+
+  const preparedClasses = activeCharacter.classes
+    .map((c) => {
+      const limit = preparedMeta.limitsByClassId[c.id]
+      if (typeof limit !== 'number') return null
+      const used = preparedMeta.preparedCountByClassId[c.id] ?? 0
+      return { classId: c.id, label: classLabel(c), used, limit }
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+
+  const preparedTotal = preparedClasses.reduce(
+    (acc, x) => ({ used: acc.used + x.used, limit: acc.limit + x.limit }),
+    { used: 0, limit: 0 },
+  )
+
+  const [openUpcastSpellIndex, setOpenUpcastSpellIndex] = useState<string | null>(null)
+  const [openMaterialSpellIndex, setOpenMaterialSpellIndex] = useState<string | null>(null)
+
+  const effectTargetOptions: Array<{ value: SpellEffectTarget; label: string }> = [
+    { value: 'ac', label: 'CA' },
+    { value: 'speed', label: 'Deslocamento' },
+    { value: 'initiative', label: 'Iniciativa' },
+    { value: 'attack', label: 'Ataque (ATQ)' },
+    { value: 'save', label: 'Teste de resistência' },
+    { value: 'ability', label: 'Atributo' },
+    { value: 'condition', label: 'Condição' },
+  ]
+
+  const conditionOptions: Array<{ value: ConditionKey; label: string }> = [
+    { value: 'blinded', label: 'Cegueira' },
+    { value: 'deafened', label: 'Surdez' },
+    { value: 'frightened', label: 'Amedrontado' },
+    { value: 'poisoned', label: 'Envenenado' },
+    { value: 'prone', label: 'Caído' },
+    { value: 'restrained', label: 'Contido' },
+    { value: 'stunned', label: 'Atordoado' },
+    { value: 'paralyzed', label: 'Paralisado' },
+    { value: 'charmed', label: 'Enfeitiçado' },
+  ]
+
+  const modeLabel = (m: SpellEffectMode) =>
+    m === 'add'
+      ? '+'
+      : m === 'sub'
+        ? '− (reduz)'
+        : m === 'set'
+          ? 'Definir'
+          : m === 'adv'
+            ? 'Vantagem'
+            : m === 'dis'
+              ? 'Desvantagem'
+              : 'Aplicar'
+
+  const modeOptionsForTarget = (t: SpellEffectTarget): SpellEffectMode[] => {
+    if (t === 'condition') return ['apply']
+    if (t === 'ability') return ['add', 'sub', 'set']
+    if (t === 'ac' || t === 'speed' || t === 'initiative') return ['add', 'sub', 'set']
+    return ['add', 'sub', 'set', 'adv', 'dis']
+  }
+
+  const abilityLabel = (a: Ability) => abilityShort(a)
+
+  const conditionLabel = (c: ConditionKey) =>
+    conditionOptions.find((x) => x.value === c)?.label ?? c
+
+  const formatEffectBadge = (eff: SpellEffect): string | null => {
+    const round1 = (n: number) => Math.round(n * 10) / 10
+    const fmt = (n: number) => {
+      const r = round1(n)
+      const isInt = Math.abs(r - Math.round(r)) < 1e-9
+      return isInt ? String(Math.round(r)) : String(r).replace('.', ',')
+    }
+    const signed = (n: number) => (n >= 0 ? `+${fmt(n)}` : `-${fmt(Math.abs(n))}`)
+    const delta = (n: number) => (eff.mode === 'sub' ? -Math.abs(n) : n)
+    const needsAbility = eff.target === 'attack' || eff.target === 'save' || eff.target === 'ability'
+    const abilitySuffix = needsAbility && eff.ability ? ` ${abilityLabel(eff.ability)}` : ''
+
+    if (eff.mode === 'apply') {
+      if (eff.target !== 'condition') return null
+      if (!eff.condition) return null
+      return `Condição: ${conditionLabel(eff.condition)}`
+    }
+
+    if (eff.mode === 'adv') {
+      if (eff.target === 'attack') return `Vantagem ATQ${abilitySuffix}`
+      if (eff.target === 'save') return `Vantagem Teste${abilitySuffix}`
+      return 'Vantagem'
+    }
+    if (eff.mode === 'dis') {
+      if (eff.target === 'attack') return `Desvantagem ATQ${abilitySuffix}`
+      if (eff.target === 'save') return `Desvantagem Teste${abilitySuffix}`
+      return 'Desvantagem'
+    }
+
+    if (typeof eff.value !== 'number' || Number.isNaN(eff.value)) return null
+    const value = eff.mode === 'set' ? eff.value : delta(eff.value)
+
+    if (eff.target === 'ac') return eff.mode === 'set' ? `CA = ${value}` : `CA ${signed(value)}`
+    if (eff.target === 'initiative') return eff.mode === 'set' ? `Ini = ${value}` : `Ini ${signed(value)}`
+    if (eff.target === 'ability') {
+      const a = eff.ability ? abilityLabel(eff.ability) : 'ATR'
+      return eff.mode === 'set' ? `${a} = ${value}` : `${a} ${signed(value)}`
+    }
+
+    if (eff.target === 'speed') {
+      const unit = eff.unit ?? 'ft'
+      const meters = unit === 'm' ? value : value * 0.3
+      const m = round1(meters)
+      return eff.mode === 'set'
+        ? `Desloc. = ${fmt(m)} m`
+        : `Desloc. ${signed(m)} m`
+    }
+
+    if (eff.target === 'attack') {
+      return eff.mode === 'set'
+        ? `ATQ${abilitySuffix} = ${value}`
+        : `ATQ${abilitySuffix} ${signed(value)}`
+    }
+    if (eff.target === 'save') {
+      return eff.mode === 'set'
+        ? `Teste${abilitySuffix} = ${value}`
+        : `Teste${abilitySuffix} ${signed(value)}`
+    }
+
+    return null
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-textH">Magias adicionadas</div>
+            <div className="mt-1 text-xs text-text">Aqui aparecem apenas as magias adicionadas.</div>
+            {preparedClasses.length ? (
+              <div className="mt-2">
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <div className="min-w-[132px]">
+                    <div className="text-[11px] text-text">Preparadas (total)</div>
+                    <Input readOnly value={`${preparedTotal.used}/${preparedTotal.limit}`} />
+                  </div>
+
+                  {preparedClasses.map((x) => (
+                    <div key={x.classId} className="min-w-[132px]">
+                      <div className="text-[11px] text-text">{x.label}</div>
+                      <Input readOnly value={`${x.used}/${x.limit}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <div className="text-xs text-text">{activeCharacter.spells.length} no total</div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-end gap-2 overflow-x-auto pb-1">
+          <div className="min-w-[240px] shrink-0">
+            <label className="text-xs text-text">Nome</label>
+            <Input
+              className="mt-1 w-full"
+              value={addedNameFilter}
+              onChange={(e) => setAddedNameFilter(e.target.value)}
+              placeholder="ex: fire"
+            />
+          </div>
+          <div className="min-w-[170px] shrink-0">
+            <label className="text-xs text-text">Nível (círculo)</label>
+            <Select
+              className="mt-1 w-full"
+              value={addedLevelFilter}
+              onChange={(e) => {
+                const v = e.target.value
+                setAddedLevelFilter(v === 'any' ? 'any' : (Number(v) as MagicCircleLevel))
+              }}
+            >
+              <option value="any">Qualquer</option>
+              {magicCircleOptions().map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="min-w-[190px] shrink-0">
+            <label className="text-xs text-text">Escola</label>
+            <Select
+              className="mt-1 w-full"
+              value={addedSchoolFilter}
+              onChange={(e) => setAddedSchoolFilter(e.target.value)}
+            >
+              <option value="any">Qualquer</option>
+              {activeCharacterSchools.map((s) => (
+                <option key={s} value={s}>
+                  {schoolLabel(s)}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="min-w-[190px] shrink-0">
+            <label className="text-xs text-text">Preparadas</label>
+            <Select
+              className="mt-1 w-full"
+              value={addedPreparedFilter}
+              onChange={(e) => setAddedPreparedFilter(e.target.value as typeof addedPreparedFilter)}
+            >
+              <option value="any">Todas</option>
+              <option value="prepared">Só preparadas</option>
+              <option value="notPrepared">Só não preparadas</option>
+            </Select>
+          </div>
+          <div className="min-w-[190px] shrink-0">
+            <label className="text-xs text-text">Fonte</label>
+            <Select
+              className="mt-1 w-full"
+              value={addedClassFilter}
+              onChange={(e) => setAddedClassFilter(e.target.value)}
+            >
+              <option value="any">Qualquer</option>
+              <option value="feat">Feat</option>
+              {activeCharacter.classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {classLabel(c)}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        <div className="mt-3 overflow-auto rounded-lg border border-border">
+          <table className="w-full min-w-[1320px] table-fixed border-collapse">
+            <thead className="bg-accentBg">
+              <tr className="text-left text-xs text-text">
+                <th className="w-[70px] whitespace-nowrap p-2">Prep.</th>
+                <th className="w-[260px] p-2">Nome</th>
+                <th className="w-[70px] whitespace-nowrap p-2">Nível</th>
+                <th className="w-[130px] p-2">Escola</th>
+                <th className="w-[90px] whitespace-nowrap p-2">Comp.</th>
+                <th className="w-[440px] p-2">Dano / Detalhes</th>
+                <th className="w-[220px] p-2">Conjurar como</th>
+                <th className="w-[210px] p-2">Classes (API)</th>
+                <th className="w-[110px] p-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAddedSpells.length === 0 ? (
+                <tr>
+                  <td className="p-3 text-sm text-text" colSpan={9}>
+                    Nenhuma magia bate com os filtros.
+                    <div className="text-xs text-text">{activeCharacter.spells.length} no total</div>
+                  </td>
+                </tr>
+              ) : (
+                filteredAddedSpells.map((entry) => {
+                  const detail = entry.homebrew
+                    ? homebrewToDndSpell({ entry, hb: entry.homebrew })
+                    : spellDetails[entry.spellIndex]
+                  const err = entry.homebrew ? undefined : spellDetailsError[entry.spellIndex]
+                  const apiClasses = entry.homebrew
+                    ? ['(homebrew)']
+                    : (detail?.classes?.map((c) => apiClassLabel(c)) ?? [])
+                  const sourceType = entry.sourceType ?? 'class'
+                  const castAs =
+                    sourceType === 'feat'
+                      ? undefined
+                      : activeCharacter.classes.find((c) => c.id === entry.sourceClassId)
+                  const allowedSchool =
+                    castAs && sourceType !== 'feat'
+                      ? isAllowedSchoolForClass(castAs.classIndex, detail)
+                      : true
+
+                  const castingAbility: Ability | undefined =
+                    sourceType === 'feat'
+                      ? (entry.featAbility ?? 'cha')
+                      : castAs?.castingAbility
+                  const castingAbilityScore = castingAbility
+                    ? activeCharacter.abilities[castingAbility]
+                    : undefined
+                  const classLevelForSpell =
+                    sourceType === 'feat'
+                      ? activeCharacterTotalLevel
+                      : (castAs?.level ?? activeCharacterTotalLevel)
+
+                  const atkSpell =
+                    castingAbilityScore !== undefined
+                      ? spellAttackBonus({
+                          proficiencyMode: activeCharacter.proficiencyMode,
+                          totalCharacterLevel: activeCharacterTotalLevel,
+                          classLevel: classLevelForSpell,
+                          abilityScore: castingAbilityScore,
+                        })
+                      : null
+
+                  const dcSpell =
+                    castingAbilityScore !== undefined
+                      ? spellSaveDc({
+                          proficiencyMode: activeCharacter.proficiencyMode,
+                          totalCharacterLevel: activeCharacterTotalLevel,
+                          classLevel: classLevelForSpell,
+                          abilityScore: castingAbilityScore,
+                        })
+                      : null
+
+                  const descLower = (detail?.desc ?? []).join(' ').toLowerCase()
+
+                  const saveAbility = ((): Ability | null => {
+                    const idx = detail?.dc?.dc_type?.index
+                    if (idx && (ABILITY_KEYS as string[]).includes(idx)) return idx as Ability
+                    const name = detail?.dc?.dc_type?.name?.toLowerCase()
+                    if (!name) return null
+                    if (name === 'str' || name === 'strength') return 'str'
+                    if (name === 'dex' || name === 'dexterity') return 'dex'
+                    if (name === 'con' || name === 'constitution') return 'con'
+                    if (name === 'int' || name === 'intelligence') return 'int'
+                    if (name === 'wis' || name === 'wisdom') return 'wis'
+                    if (name === 'cha' || name === 'charisma') return 'cha'
+                    return null
+                  })()
+                  const saveTypeName = saveAbility ? abilityShort(saveAbility) : detail?.dc?.dc_type?.name
+
+                  const usesSave = Boolean(saveTypeName) || descLower.includes('saving throw')
+                  const usesAttack = typeof detail?.attack_type === 'string' || descLower.includes('spell attack')
+
+                  const displayName = entry.displayNamePt?.trim() || entry.spellName
+                  const isOpen = openSpellIndex === entry.spellIndex
+
+                  const spellBaseLevel = (detail?.level ?? 1) as MagicCircleLevel
+                  const effectiveSlot = ((): MagicCircleLevel => {
+                    if (spellBaseLevel === 0) return 0
+                    const v = entry.castSlotLevel
+                    if (!v) return spellBaseLevel
+                    return (Math.max(spellBaseLevel, v) as MagicCircleLevel) ?? spellBaseLevel
+                  })()
+
+                  const damageEstimate = estimateSpellDamageDice({
+                    spell: detail,
+                    characterLevel: activeCharacterTotalLevel,
+                    slotLevel: effectiveSlot,
+                  })
+
+                  const textForNumericMods = (() => {
+                    if (entry.homebrew) {
+                      const a = entry.homebrew.desc ?? ''
+                      const b = entry.homebrew.higherLevel ?? ''
+                      return `${a}\n${b}`
+                    }
+                    const desc = entry.officialDescPt?.length
+                      ? entry.officialDescPt
+                      : (detail?.desc ?? [])
+                    const higher = entry.officialHigherLevelPt?.length
+                      ? entry.officialHigherLevelPt
+                      : (detail?.higher_level ?? [])
+                    return `${desc.join('\n')}\n${higher.join('\n')}`
+                  })()
+
+                  const meta = spellMeta({
+                    spell: detail,
+                    hb: entry.homebrew,
+                    textForNumericMods,
+                  })
+
+                  const manualEffects = entry.effects ?? []
+
+                  const combatBadgeNodes: ReactNode[] = []
+                  if (usesAttack && atkSpell !== null) combatBadgeNodes.push(badge(`ATQ\u00A0${formatSigned(atkSpell)}`, { kind: 'grid' }))
+                  if (usesSave && dcSpell !== null) combatBadgeNodes.push(badge(`CD\u00A0${dcSpell}`, { kind: 'grid' }))
+                  if (usesSave && saveTypeName) {
+                    const t = `Teste ${saveTypeName}`
+                    const nb = t.split(' ').join('\u00A0')
+                    combatBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
+                  }
+                  const upcastLabel = upcastRuleLabel(detail)
+                  meta.numericMods.forEach((m) => combatBadgeNodes.push(badge(m, { kind: 'grid', title: m })))
+
+                  const infoBadgeNodes: ReactNode[] = []
+                  if (meta.range) {
+                    const t = `Alc. ${meta.range}`
+                    const nb = t.split(' ').join('\u00A0')
+                    infoBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
+                  }
+                  if (meta.area) {
+                    const t = `Área: ${meta.area}`
+                    const nb = t.split(' ').join('\u00A0')
+                    infoBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
+                  }
+                  if (meta.duration) {
+                    const t = `Dur. ${meta.duration}`
+                    const nb = t.split(' ').join('\u00A0')
+                    infoBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
+                  }
+                  if (meta.concentration) infoBadgeNodes.push(badge('Concentração', { kind: 'grid' }))
+                  manualEffects.forEach((eff) => {
+                    const txt = formatEffectBadge(eff)
+                    if (txt) {
+                      const nb = txt.split(' ').join('\u00A0')
+                      infoBadgeNodes.push(badge(nb, { kind: 'grid', title: txt }))
+                    }
+                  })
+
+                  const slotOptions: MagicCircleLevel[] =
+                    spellBaseLevel === 0
+                      ? [0]
+                      : (magicCircleOptions().filter((x) => x >= spellBaseLevel) as MagicCircleLevel[])
+
+                  const prepClassId = entry.sourceType === 'feat' ? undefined : entry.sourceClassId
+                  const prepLimit = prepClassId ? preparedMeta.limitsByClassId[prepClassId] : undefined
+                  const prepCount = prepClassId
+                    ? (preparedMeta.preparedCountByClassId[prepClassId] ?? 0)
+                    : 0
+                  const isPrepared = Boolean(entry.prepared)
+                  const canPrepare = typeof prepLimit === 'number'
+                  const limitReached = canPrepare ? prepCount >= prepLimit : true
+                  const disablePrepare = !isPrepared && (!canPrepare || limitReached)
+                  const prepTitle = !canPrepare
+                    ? 'Esta fonte não usa lista de magias preparadas.'
+                    : limitReached && !isPrepared
+                      ? `Limite de preparadas atingido (${prepCount}/${prepLimit}).`
+                      : `Preparadas: ${prepCount}/${prepLimit}`
+
+                  return (
+                    <Fragment key={entry.spellIndex}>
+                      <tr className="border-t border-border text-sm odd:bg-[color:var(--social-bg)] hover:bg-accentBg">
+                        <td className="p-2 align-top text-text" title={prepTitle}>
+                          <div className="flex items-center justify-start">
+                            {canPrepare || isPrepared ? (
+                              <input
+                                type="checkbox"
+                                checked={isPrepared}
+                                disabled={disablePrepare}
+                                onChange={(e) => {
+                                  const next = e.target.checked
+                                  if (next) {
+                                    if (!canPrepare) return
+                                    if (limitReached) return
+                                  }
+                                  updateCharacter(activeCharacter.id, (c) => ({
+                                    ...c,
+                                    spells: c.spells.map((s) =>
+                                      s.spellIndex === entry.spellIndex
+                                        ? { ...s, prepared: next || undefined }
+                                        : s,
+                                    ),
+                                  }))
+                                }}
+                                aria-label="Marcar como preparada"
+                              />
+                            ) : (
+                              <span className="text-xs text-text">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2 align-top text-textH">
+                          <button
+                            className="w-full text-left"
+                            onClick={() => {
+                              setOpenSpellIndex((prev) =>
+                                prev === entry.spellIndex ? null : entry.spellIndex,
+                              )
+                              setOpenSpellTab('official')
+                            }}
+                            title="Abrir descrição / editar"
+                          >
+                            <div className="flex items-center gap-2 font-medium">
+                              <span className="underline decoration-accentBorder underline-offset-2">
+                                {displayName}
+                              </span>
+                              {!allowedSchool ? badge('Fora da escola') : null}
+                              {entry.displayNamePt?.trim() ? badge('PT') : null}
+                            </div>
+                            {entry.displayNamePt?.trim() ? (
+                              <div className="mt-0.5 text-xs text-text">Original: {entry.spellName}</div>
+                            ) : null}
+                            {err ? <div className="mt-1 text-xs text-text">{err}</div> : null}
+                          </button>
+                        </td>
+                        <td className="p-2 align-top text-text">{detail ? detail.level : '…'}</td>
+                        <td className="p-2 align-top text-text">{detail ? schoolLabel(detail.school.name) : '…'}</td>
+                        <td className="p-2 align-top text-text">
+                          {detail ? (
+                            (() => {
+                              const comps = Array.isArray(detail.components) ? detail.components : []
+                              const text = ['V', 'S', 'M'].filter((c) => comps.includes(c)).join('')
+                              if (!text) return <span className="text-xs text-text">—</span>
+                              const hasMaterial = comps.includes('M') && typeof detail.material === 'string' && detail.material.trim()
+                              return (
+                                <div className="relative inline-block">
+                                  {hasMaterial ? (
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center rounded-md border border-accentBorder bg-accentBg px-1.5 py-0.5 text-[11px] leading-4 text-textH whitespace-nowrap hover:opacity-90"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setOpenMaterialSpellIndex((prev) =>
+                                          prev === entry.spellIndex ? null : entry.spellIndex,
+                                        )
+                                      }}
+                                      aria-expanded={openMaterialSpellIndex === entry.spellIndex}
+                                      aria-controls={`material-${entry.spellIndex}`}
+                                      title="Ver componentes materiais"
+                                    >
+                                      {text}
+                                    </button>
+                                  ) : (
+                                    badge(text)
+                                  )}
+
+                                  {hasMaterial && openMaterialSpellIndex === entry.spellIndex ? (
+                                    <div
+                                      id={`material-${entry.spellIndex}`}
+                                      className="absolute left-0 top-full z-10 mt-1 w-[min(520px,90vw)] rounded-md border border-border bg-bg p-2 text-xs text-text shadow-theme whitespace-normal break-words"
+                                    >
+                                      {detail.material}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            })()
+                          ) : (
+                            '…'
+                          )}
+                        </td>
+                        <td className="p-2 align-top text-text">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono">{damageEstimate}</span>
+
+                            {spellBaseLevel === 0 ? null : (
+                              <Select
+                                className="h-8 w-[92px] px-2 text-xs"
+                                value={effectiveSlot}
+                                onChange={(e) => {
+                                  const castSlotLevel = Number(e.target.value) as MagicCircleLevel
+                                  updateCharacter(activeCharacter.id, (c) => ({
+                                    ...c,
+                                    spells: c.spells.map((s) =>
+                                      s.spellIndex === entry.spellIndex
+                                        ? { ...s, castSlotLevel }
+                                        : s,
+                                    ),
+                                  }))
+                                }}
+                                title="Círculo usado (para dano/escala)"
+                              >
+                                {slotOptions.map((lvl) => (
+                                  <option key={lvl} value={lvl}>
+                                    Círc. {lvl}
+                                  </option>
+                                ))}
+                              </Select>
+                            )}
+                          </div>
+
+                          {(combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
+                            <div className="relative mt-1">
+                              <div className="grid w-full min-w-0 gap-1.5 [grid-template-columns:repeat(auto-fit,minmax(132px,1fr))]">
+                                {combatBadgeNodes}
+                                {infoBadgeNodes}
+                              </div>
+
+                              {upcastLabel ? (
+                                <div className="mt-1 flex">
+                                  <button
+                                    type="button"
+                                    className="inline-flex shrink-0 items-center rounded-md border border-accentBorder bg-accentBg px-2 py-1 text-xs leading-4 text-textH whitespace-nowrap hover:opacity-90"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setOpenUpcastSpellIndex((prev) =>
+                                        prev === entry.spellIndex ? null : entry.spellIndex,
+                                      )
+                                    }}
+                                    aria-expanded={openUpcastSpellIndex === entry.spellIndex}
+                                    aria-controls={`upcast-${entry.spellIndex}`}
+                                    title="Ver escala (níveis superiores)"
+                                  >
+                                    Ver escala
+                                  </button>
+                                </div>
+                              ) : null}
+
+                              {upcastLabel && openUpcastSpellIndex === entry.spellIndex ? (
+                                <div
+                                  id={`upcast-${entry.spellIndex}`}
+                                  className="absolute left-0 top-full z-10 mt-1 w-[min(520px,90vw)] rounded-md border border-border bg-bg p-2 text-xs text-text shadow-theme whitespace-normal break-words"
+                                >
+                                  {upcastLabel}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="p-2 align-top">
+                          <Select
+                            className="h-9 w-full min-w-0 px-2 py-1 text-sm"
+                            value={entry.sourceType === 'feat' ? '__feat__' : (entry.sourceClassId ?? '')}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              updateCharacter(activeCharacter.id, (c) => ({
+                                ...c,
+                                spells: c.spells.map((s) =>
+                                  s.spellIndex === entry.spellIndex
+                                    ? v === '__feat__'
+                                      ? {
+                                          ...s,
+                                          sourceType: 'feat',
+                                          sourceClassId: undefined,
+                                          featAbility:
+                                            s.featAbility ??
+                                            c.classes.find((x) => x.id === s.sourceClassId)?.castingAbility ??
+                                            c.classes[0]?.castingAbility ??
+                                            'cha',
+                                        }
+                                      : v
+                                        ? {
+                                            ...s,
+                                            sourceType: 'class',
+                                            sourceClassId: v,
+                                            featName: undefined,
+                                            featAbility: undefined,
+                                          }
+                                        : {
+                                            ...s,
+                                            sourceType: 'class',
+                                            sourceClassId: undefined,
+                                            featName: undefined,
+                                            featAbility: undefined,
+                                          }
+                                    : s,
+                                ),
+                              }))
+                            }}
+                          >
+                            <option value="">(nenhuma)</option>
+                            <option value="__feat__">Feat</option>
+                            {activeCharacter.classes.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {classDisplayName(c)}
+                              </option>
+                            ))}
+                          </Select>
+
+                          {entry.sourceType === 'feat' ? (
+                            <div className="mt-1 grid grid-cols-1 gap-1">
+                              <Input
+                                className="h-8 w-full px-2 text-xs"
+                                value={entry.featName ?? ''}
+                                onChange={(e) => {
+                                  const featName = e.target.value || undefined
+                                  updateCharacter(activeCharacter.id, (c) => ({
+                                    ...c,
+                                    spells: c.spells.map((s) =>
+                                      s.spellIndex === entry.spellIndex ? { ...s, featName } : s,
+                                    ),
+                                  }))
+                                }}
+                                placeholder="Nome do feat (ex: Fey Touched)"
+                              />
+                              <Select
+                                className="h-8 w-full px-2 text-xs"
+                                value={entry.featAbility ?? 'cha'}
+                                onChange={(e) => {
+                                  const featAbility = e.target.value as Ability
+                                  updateCharacter(activeCharacter.id, (c) => ({
+                                    ...c,
+                                    spells: c.spells.map((s) =>
+                                      s.spellIndex === entry.spellIndex ? { ...s, featAbility } : s,
+                                    ),
+                                  }))
+                                }}
+                                title="Atributo usado para conjurar via feat"
+                              >
+                                {ABILITY_KEYS.map((key) => (
+                                  <option key={key} value={key}>
+                                    {abilityShort(key)}
+                                  </option>
+                                ))}
+                              </Select>
+                            </div>
+                          ) : null}
+
+                          {castAs ? (
+                            <div className="mt-1 text-[11px] text-text">Atributo: {abilityShort(castAs.castingAbility)}</div>
+                          ) : null}
+
+                          {entry.sourceType === 'feat' ? (
+                            <div className="mt-1 text-[11px] text-text">Atributo: {abilityShort(entry.featAbility ?? 'cha')}</div>
+                          ) : null}
+                        </td>
+                        <td className="p-2 align-top text-text">
+                          {apiClasses.length ? apiClasses.join(', ') : detail ? '(none)' : '…'}
+                        </td>
+                        <td className="p-2 align-top">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => removeSpellFromActive(entry.spellIndex)}
+                            title="Remover magia"
+                          >
+                            Remover
+                          </Button>
+                        </td>
+                      </tr>
+
+                      {isOpen ? (
+                        <tr className="border-t border-border">
+                          <td className="p-3" colSpan={9}>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_1fr]">
+                              <div>
+                                <div className="text-xs font-semibold text-textH">Nome em português</div>
+                                <div className="mt-1 text-xs text-text">Opcional. Se preenchido, aparece na lista.</div>
+                                <Input
+                                  className="mt-2"
+                                  value={entry.displayNamePt ?? ''}
+                                  onChange={(e) => {
+                                    const displayNamePt = e.target.value || undefined
+                                    updateCharacter(activeCharacter.id, (c) => ({
+                                      ...c,
+                                      spells: c.spells.map((s) =>
+                                        s.spellIndex === entry.spellIndex ? { ...s, displayNamePt } : s,
+                                      ),
+                                    }))
+                                  }}
+                                  placeholder="ex: Aperto Chocante"
+                                />
+
+                                <div className="mt-3 flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant={openSpellTab === 'official' ? 'primary' : 'secondary'}
+                                    onClick={() => setOpenSpellTab('official')}
+                                  >
+                                    Oficial
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={openSpellTab === 'modifiers' ? 'primary' : 'secondary'}
+                                    onClick={() => setOpenSpellTab('modifiers')}
+                                  >
+                                    Modificadores
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={openSpellTab === 'headcanon' ? 'primary' : 'secondary'}
+                                    onClick={() => setOpenSpellTab('headcanon')}
+                                  >
+                                    Headcanon
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div>
+                                {openSpellTab === 'official' ? (
+                                  <div>
+                                    {entry.homebrew ? (
+                                      <div>
+                                        <div className="text-xs font-semibold text-textH">Homebrew</div>
+                                        <div className="mt-1 text-xs text-text">
+                                          Edita os dados da magia homebrew (salvo no personagem/sync).
+                                        </div>
+
+                                        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                          <div>
+                                            <label className="text-xs text-text">Nome</label>
+                                            <Input
+                                              className="mt-1"
+                                              value={entry.homebrew.name}
+                                              onChange={(e) => {
+                                                const name = e.target.value
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? {
+                                                          ...s,
+                                                          spellName: name,
+                                                          homebrew: { ...s.homebrew!, name },
+                                                        }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Nível</label>
+                                            <Select
+                                              className="mt-1"
+                                              value={entry.homebrew.level}
+                                              onChange={(e) => {
+                                                const level = Number(e.target.value) as MagicCircleLevel
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? {
+                                                          ...s,
+                                                          castSlotLevel: level,
+                                                          homebrew: { ...s.homebrew!, level },
+                                                        }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                            >
+                                              {magicCircleOptions().map((lvl) => (
+                                                <option key={lvl} value={lvl}>
+                                                  {lvl}
+                                                </option>
+                                              ))}
+                                            </Select>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Escola</label>
+                                            <Select
+                                              className="mt-1"
+                                              value={entry.homebrew.school}
+                                              onChange={(e) => {
+                                                const school = e.target.value
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? { ...s, homebrew: { ...s.homebrew!, school } }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                            >
+                                              {Object.keys(SCHOOL_NAME_PT)
+                                                .sort((a, b) =>
+                                                  schoolLabel(a).localeCompare(schoolLabel(b), 'pt-BR'),
+                                                )
+                                                .map((k) => (
+                                                  <option key={k} value={k}>
+                                                    {schoolLabel(k)}
+                                                  </option>
+                                                ))}
+                                            </Select>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Alcance</label>
+                                            <Input
+                                              className="mt-1"
+                                              value={entry.homebrew.range ?? ''}
+                                              onChange={(e) => {
+                                                const range = e.target.value || undefined
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? { ...s, homebrew: { ...s.homebrew!, range } }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                              placeholder="ex: 18 m / Toque / Pessoal"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Área</label>
+                                            <Input
+                                              className="mt-1"
+                                              value={entry.homebrew.area ?? ''}
+                                              onChange={(e) => {
+                                                const area = e.target.value || undefined
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? { ...s, homebrew: { ...s.homebrew!, area } }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                              placeholder="ex: cone 15ft / esfera 6m"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Duração</label>
+                                            <Input
+                                              className="mt-1"
+                                              value={entry.homebrew.duration ?? ''}
+                                              onChange={(e) => {
+                                                const duration = e.target.value || undefined
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? { ...s, homebrew: { ...s.homebrew!, duration } }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                              placeholder="ex: 1 minuto / 10 minutos / 1 hora"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Concentração</label>
+                                            <div className="mt-2 flex items-center gap-2">
+                                              <input
+                                                type="checkbox"
+                                                checked={Boolean(entry.homebrew.concentration)}
+                                                onChange={(e) => {
+                                                  const concentration = e.target.checked ? true : undefined
+                                                  updateCharacter(activeCharacter.id, (c) => ({
+                                                    ...c,
+                                                    spells: c.spells.map((s) =>
+                                                      s.spellIndex === entry.spellIndex
+                                                        ? {
+                                                            ...s,
+                                                            homebrew: { ...s.homebrew!, concentration },
+                                                          }
+                                                        : s,
+                                                    ),
+                                                  }))
+                                                }}
+                                              />
+                                              <span className="text-xs text-text">Exige concentração</span>
+                                            </div>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Dano (base)</label>
+                                            <Input
+                                              className="mt-1"
+                                              value={entry.homebrew.damageDice ?? ''}
+                                              onChange={(e) => {
+                                                const damageDice = e.target.value || undefined
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? { ...s, homebrew: { ...s.homebrew!, damageDice } }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                              placeholder="ex: 2d6"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Mecânica</label>
+                                            <Select
+                                              className="mt-1"
+                                              value={entry.homebrew.mechanic ?? 'none'}
+                                              onChange={(e) => {
+                                                const mechanic = e.target.value as HomebrewSpellMechanic
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? {
+                                                          ...s,
+                                                          homebrew: {
+                                                            ...s.homebrew!,
+                                                            mechanic,
+                                                            saveAbility:
+                                                              mechanic === 'save' || mechanic === 'both'
+                                                                ? (s.homebrew!.saveAbility ?? 'dex')
+                                                                : undefined,
+                                                          },
+                                                        }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                            >
+                                              <option value="none">Nenhuma</option>
+                                              <option value="attack">Ataque</option>
+                                              <option value="save">Teste de resistência</option>
+                                              <option value="both">Ataque + Teste</option>
+                                            </Select>
+                                          </div>
+
+                                          {(entry.homebrew.mechanic === 'save' || entry.homebrew.mechanic === 'both') ? (
+                                            <div>
+                                              <label className="text-xs text-text">Resistência (atributo)</label>
+                                              <Select
+                                                className="mt-1"
+                                                value={entry.homebrew.saveAbility ?? 'dex'}
+                                                onChange={(e) => {
+                                                  const saveAbility = e.target.value as Ability
+                                                  updateCharacter(activeCharacter.id, (c) => ({
+                                                    ...c,
+                                                    spells: c.spells.map((s) =>
+                                                      s.spellIndex === entry.spellIndex
+                                                        ? { ...s, homebrew: { ...s.homebrew!, saveAbility } }
+                                                        : s,
+                                                    ),
+                                                  }))
+                                                }}
+                                              >
+                                                {ABILITY_KEYS.map((key) => (
+                                                  <option key={key} value={key}>
+                                                    {abilityShort(key)}
+                                                  </option>
+                                                ))}
+                                              </Select>
+                                            </div>
+                                          ) : null}
+                                        </div>
+
+                                        <div className="mt-3">
+                                          <div className="text-xs font-semibold text-textH">Descrição</div>
+                                          <Textarea
+                                            className="mt-2"
+                                            value={entry.homebrew.desc ?? ''}
+                                            onChange={(e) => {
+                                              const desc = e.target.value || undefined
+                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                ...c,
+                                                spells: c.spells.map((s) =>
+                                                  s.spellIndex === entry.spellIndex
+                                                    ? { ...s, homebrew: { ...s.homebrew!, desc } }
+                                                    : s,
+                                                ),
+                                              }))
+                                            }}
+                                            placeholder="Texto livre…"
+                                          />
+                                        </div>
+
+                                        <div className="mt-3">
+                                          <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
+                                          <Textarea
+                                            className="mt-2"
+                                            value={entry.homebrew.higherLevel ?? ''}
+                                            onChange={(e) => {
+                                              const higherLevel = e.target.value || undefined
+                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                ...c,
+                                                spells: c.spells.map((s) =>
+                                                  s.spellIndex === entry.spellIndex
+                                                    ? { ...s, homebrew: { ...s.homebrew!, higherLevel } }
+                                                    : s,
+                                                ),
+                                              }))
+                                            }}
+                                            placeholder="Opcional…"
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <div>
+                                          <div className="text-xs font-semibold text-textH">Descrição (API)</div>
+                                          <div className="mt-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="text-xs text-text">
+                                                {entry.officialDescPt?.length
+                                                  ? 'Traduzido (PT-BR)'
+                                                  : 'Original (EN)'}
+                                              </div>
+
+                                              <div className="flex items-center gap-2">
+                                                {translateStatus.kind === 'error' &&
+                                                translateStatus.spellIndex === entry.spellIndex ? (
+                                                  <div className="text-[11px] text-text">
+                                                    {translateStatus.message}
+                                                  </div>
+                                                ) : null}
+
+                                                <Button
+                                                  size="sm"
+                                                  variant="secondary"
+                                                  disabled={
+                                                    !detail ||
+                                                    translateStatus.kind === 'loading' ||
+                                                    Boolean(entry.officialDescPt?.length)
+                                                  }
+                                                  onClick={() => {
+                                                    if (!detail) return
+                                                    void translateOfficialToPt({
+                                                      spellIndex: entry.spellIndex,
+                                                      desc: detail.desc ?? [],
+                                                      higher: detail.higher_level ?? [],
+                                                    })
+                                                  }}
+                                                  title={
+                                                    entry.officialDescPt?.length
+                                                      ? 'Já traduzido'
+                                                      : 'Traduzir descrição para PT-BR'
+                                                  }
+                                                >
+                                                  {translateStatus.kind === 'loading' &&
+                                                  translateStatus.spellIndex === entry.spellIndex
+                                                    ? 'Traduzindo…'
+                                                    : 'Traduzir PT-BR'}
+                                                </Button>
+                                              </div>
+                                            </div>
+
+                                            <div className="mt-2 space-y-2 text-sm text-text">
+                                              {!detail ? (
+                                                <div>Carregando…</div>
+                                              ) : (
+                                                <>
+                                                  {(entry.officialDescPt?.length
+                                                    ? entry.officialDescPt
+                                                    : detail.desc ?? []
+                                                  ).map((p, i) => (
+                                                    <p key={i}>
+                                                      <InlineMarkdown text={p} />
+                                                    </p>
+                                                  ))}
+
+                                                  {(detail.higher_level ?? []).length ? (
+                                                    <div className="mt-2 rounded-lg border border-border bg-bg p-3">
+                                                      <div className="text-xs font-semibold text-textH">
+                                                        Em níveis superiores
+                                                      </div>
+                                                      <div className="mt-2 space-y-2 text-sm text-text">
+                                                        {(entry.officialHigherLevelPt?.length
+                                                          ? entry.officialHigherLevelPt
+                                                          : detail.higher_level!
+                                                        ).map((p, i) => (
+                                                          <p key={i}>
+                                                            <InlineMarkdown text={p} />
+                                                          </p>
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                  ) : null}
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : openSpellTab === 'modifiers' ? (
+                                  <div>
+                                    <div className="rounded-lg border border-border bg-bg p-3">
+                                      <div className="text-xs font-semibold text-textH">Modificadores</div>
+                                      <div className="mt-1 text-xs text-text">
+                                        Defina efeitos estruturados para esta magia neste personagem (ex: CA +2, Condição: Cegueira).
+                                      </div>
+
+                                      <div className="mt-2 space-y-2">
+                                        {(entry.effects ?? []).length ? (
+                                          (entry.effects ?? []).map((eff, idx) => {
+                                            const target = eff.target
+                                            const modeChoices = modeOptionsForTarget(target)
+                                            const needsValue =
+                                              eff.mode === 'add' || eff.mode === 'sub' || eff.mode === 'set'
+                                            const needsAbility =
+                                              target === 'attack' || target === 'save' || target === 'ability'
+                                            const needsCondition = target === 'condition'
+
+                                            const gridColsMd = needsAbility || needsCondition
+                                              ? 'md:grid-cols-[170px_140px_160px_1fr_96px]'
+                                              : 'md:grid-cols-[170px_140px_1fr_96px]'
+
+                                            return (
+                                              <div
+                                                key={idx}
+                                                className={`grid grid-cols-1 gap-2 rounded-lg border border-border p-2 ${gridColsMd}`}
+                                              >
+                                                <div>
+                                                  <label className="text-[11px] text-text">Afeta</label>
+                                                  <Select
+                                                    className="mt-1 h-9"
+                                                    value={eff.target}
+                                                    onChange={(e) => {
+                                                      const nextTarget = e.target.value as SpellEffectTarget
+                                                      updateCharacter(activeCharacter.id, (c) => ({
+                                                        ...c,
+                                                        spells: c.spells.map((s) => {
+                                                          if (s.spellIndex !== entry.spellIndex) return s
+                                                          const effects = [...(s.effects ?? [])]
+                                                          const prev = effects[idx] ?? { target: 'ac', mode: 'add' }
+                                                          const nextMode = modeOptionsForTarget(nextTarget).includes(prev.mode)
+                                                            ? prev.mode
+                                                            : modeOptionsForTarget(nextTarget)[0]
+                                                          const prevSpeedUnit = prev.target === 'speed' ? (prev.unit ?? 'ft') : undefined
+                                                          const prevSpeedValueMeters =
+                                                            prev.target === 'speed' && typeof prev.value === 'number'
+                                                              ? prevSpeedUnit === 'm'
+                                                                ? prev.value
+                                                                : prev.value * 0.3
+                                                              : undefined
+                                                          effects[idx] = {
+                                                            ...prev,
+                                                            target: nextTarget,
+                                                            mode: nextMode,
+                                                            ability:
+                                                              nextTarget === 'attack' || nextTarget === 'save' || nextTarget === 'ability'
+                                                                ? (prev.ability ?? 'cha')
+                                                                : undefined,
+                                                            unit: nextTarget === 'speed' ? 'm' : undefined,
+                                                            condition:
+                                                              nextTarget === 'condition'
+                                                                ? (prev.condition ?? 'blinded')
+                                                                : undefined,
+                                                            value:
+                                                              nextTarget === 'condition' || nextMode === 'adv' || nextMode === 'dis' || nextMode === 'apply'
+                                                                ? undefined
+                                                                : nextTarget === 'speed'
+                                                                  ? prevSpeedValueMeters ?? prev.value
+                                                                  : prev.value,
+                                                          }
+                                                          return { ...s, effects }
+                                                        }),
+                                                      }))
+                                                    }}
+                                                  >
+                                                    {effectTargetOptions.map((opt) => (
+                                                      <option key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                      </option>
+                                                    ))}
+                                                  </Select>
+                                                </div>
+
+                                                <div>
+                                                  <label className="text-[11px] text-text">Como</label>
+                                                  <Select
+                                                    className="mt-1 h-9"
+                                                    value={eff.mode}
+                                                    onChange={(e) => {
+                                                      const mode = e.target.value as SpellEffectMode
+                                                      updateCharacter(activeCharacter.id, (c) => ({
+                                                        ...c,
+                                                        spells: c.spells.map((s) => {
+                                                          if (s.spellIndex !== entry.spellIndex) return s
+                                                          const effects = [...(s.effects ?? [])]
+                                                          const next = { ...effects[idx], mode }
+                                                          if (mode === 'adv' || mode === 'dis' || mode === 'apply') {
+                                                            next.value = undefined
+                                                          }
+                                                          effects[idx] = next
+                                                          return { ...s, effects }
+                                                        }),
+                                                      }))
+                                                    }}
+                                                  >
+                                                    {modeChoices.map((m) => (
+                                                      <option key={m} value={m}>
+                                                        {modeLabel(m)}
+                                                      </option>
+                                                    ))}
+                                                  </Select>
+                                                </div>
+
+                                                {needsAbility || needsCondition ? (
+                                                  <div>
+                                                    <label className="text-[11px] text-text">
+                                                      {needsCondition ? 'Condição' : 'Atributo'}
+                                                    </label>
+                                                    <Select
+                                                      className="mt-1 h-9"
+                                                      value={needsCondition ? (eff.condition ?? 'blinded') : (eff.ability ?? 'cha')}
+                                                      onChange={(e) => {
+                                                        const raw = e.target.value
+                                                        updateCharacter(activeCharacter.id, (c) => ({
+                                                          ...c,
+                                                          spells: c.spells.map((s) => {
+                                                            if (s.spellIndex !== entry.spellIndex) return s
+                                                            const effects = [...(s.effects ?? [])]
+                                                            effects[idx] = needsCondition
+                                                              ? { ...effects[idx], condition: raw as ConditionKey }
+                                                              : { ...effects[idx], ability: raw as Ability }
+                                                            return { ...s, effects }
+                                                          }),
+                                                        }))
+                                                      }}
+                                                    >
+                                                      {needsCondition
+                                                        ? conditionOptions.map((c) => (
+                                                            <option key={c.value} value={c.value}>
+                                                              {c.label}
+                                                            </option>
+                                                          ))
+                                                        : ABILITY_KEYS.map((a) => (
+                                                            <option key={a} value={a}>
+                                                              {abilityShort(a)}
+                                                            </option>
+                                                          ))}
+                                                    </Select>
+                                                  </div>
+                                                ) : null}
+
+                                                <div>
+                                                  <label className="text-[11px] text-text">{target === 'speed' ? 'Valor (m)' : 'Valor'}</label>
+                                                  <Input
+                                                    className="mt-1 h-9"
+                                                    type="number"
+                                                    disabled={!needsValue}
+                                                    value={(() => {
+                                                      if (!needsValue) return ''
+                                                      if (target !== 'speed') return String(eff.value ?? '')
+                                                      if (typeof eff.value !== 'number') return ''
+                                                      const unit = eff.unit ?? 'ft'
+                                                      const meters = unit === 'm' ? eff.value : eff.value * 0.3
+                                                      const rounded = Math.round(meters * 10) / 10
+                                                      return String(rounded)
+                                                    })()}
+                                                    onChange={(e) => {
+                                                      const raw = e.target.value
+                                                      const value = raw === '' ? undefined : Number(raw)
+                                                      updateCharacter(activeCharacter.id, (c) => ({
+                                                        ...c,
+                                                        spells: c.spells.map((s) => {
+                                                          if (s.spellIndex !== entry.spellIndex) return s
+                                                          const effects = [...(s.effects ?? [])]
+                                                          effects[idx] = {
+                                                            ...effects[idx],
+                                                            value,
+                                                            unit: target === 'speed' ? 'm' : effects[idx]?.unit,
+                                                          }
+                                                          return { ...s, effects }
+                                                        }),
+                                                      }))
+                                                    }}
+                                                    placeholder={needsValue ? 'ex: 2' : '—'}
+                                                  />
+                                                </div>
+
+                                                <div className="flex items-end justify-end">
+                                                  <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={() => {
+                                                      updateCharacter(activeCharacter.id, (c) => ({
+                                                        ...c,
+                                                        spells: c.spells.map((s) => {
+                                                          if (s.spellIndex !== entry.spellIndex) return s
+                                                          const effects = [...(s.effects ?? [])]
+                                                          effects.splice(idx, 1)
+                                                          return { ...s, effects: effects.length ? effects : undefined }
+                                                        }),
+                                                      }))
+                                                    }}
+                                                    title="Remover efeito"
+                                                  >
+                                                    Remover
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            )
+                                          })
+                                        ) : (
+                                          <div className="text-xs text-text">Nenhum modificador definido.</div>
+                                        )}
+                                      </div>
+
+                                      <div className="mt-2">
+                                        <Button
+                                          size="sm"
+                                          variant="secondary"
+                                          onClick={() => {
+                                            updateCharacter(activeCharacter.id, (c) => ({
+                                              ...c,
+                                              spells: c.spells.map((s) => {
+                                                if (s.spellIndex !== entry.spellIndex) return s
+                                                const next: SpellEffect = { target: 'ac', mode: 'add', value: 1 }
+                                                const effects = [...(s.effects ?? []), next]
+                                                return { ...s, effects }
+                                              }),
+                                            }))
+                                          }}
+                                        >
+                                          Adicionar modificador
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="text-xs font-semibold text-textH">Descrição (Headcanon)</div>
+                                    <div className="mt-1 text-xs text-text">Salva junto do personagem/sincronização.</div>
+                                    <Textarea
+                                      className="mt-2"
+                                      value={entry.headcanon ?? ''}
+                                      onChange={(e) => {
+                                        const headcanon = e.target.value || undefined
+                                        updateCharacter(activeCharacter.id, (c) => ({
+                                          ...c,
+                                          spells: c.spells.map((s) =>
+                                            s.spellIndex === entry.spellIndex ? { ...s, headcanon } : s,
+                                          ),
+                                        }))
+                                      }}
+                                      placeholder="Escreva aqui sua versão/descrição personalizada da magia…"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
