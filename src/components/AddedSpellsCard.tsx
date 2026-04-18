@@ -50,9 +50,9 @@ function badge(text: string, opts?: { title?: string; limit?: boolean; kind?: 'i
   const base =
     'items-center rounded-md border border-accentBorder bg-accentBg px-2 py-1 text-xs leading-4 text-textH whitespace-nowrap'
   const inline = 'inline-flex flex-none'
-  const grid = 'flex w-full min-w-0'
-  const limit = 'max-w-[260px] truncate'
-  const gridLimit = 'truncate'
+  const grid = 'inline-flex min-w-0 justify-self-start'
+  const limit = 'max-w-[380px] truncate'
+  const gridLimit = 'max-w-[380px] truncate'
   return (
     <span
       className={
@@ -144,6 +144,7 @@ export function AddedSpellsCard(props: {
 
   const [openUpcastSpellIndex, setOpenUpcastSpellIndex] = useState<string | null>(null)
   const [openMaterialSpellIndex, setOpenMaterialSpellIndex] = useState<string | null>(null)
+  const [openDetailsSpellIndex, setOpenDetailsSpellIndex] = useState<string | null>(null)
 
   const effectTargetOptions: Array<{ value: SpellEffectTarget; label: string }> = [
     { value: 'ac', label: 'CA' },
@@ -255,7 +256,7 @@ export function AddedSpellsCard(props: {
   }
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -263,14 +264,14 @@ export function AddedSpellsCard(props: {
             <div className="mt-1 text-xs text-text">Aqui aparecem apenas as magias adicionadas.</div>
             {preparedClasses.length ? (
               <div className="mt-2">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <div className="min-w-[132px]">
+                <div className="flex flex-wrap gap-2">
+                  <div className="w-full sm:w-[132px]">
                     <div className="text-[11px] text-text">Preparadas (total)</div>
                     <Input readOnly value={`${preparedTotal.used}/${preparedTotal.limit}`} />
                   </div>
 
                   {preparedClasses.map((x) => (
-                    <div key={x.classId} className="min-w-[132px]">
+                    <div key={x.classId} className="w-full sm:w-[132px]">
                       <div className="text-[11px] text-text">{x.label}</div>
                       <Input readOnly value={`${x.used}/${x.limit}`} />
                     </div>
@@ -283,20 +284,20 @@ export function AddedSpellsCard(props: {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end gap-2 overflow-x-auto pb-1">
-          <div className="min-w-[240px] shrink-0">
+        <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-12">
+          <div className="md:col-span-4">
             <label className="text-xs text-text">Nome</label>
             <Input
-              className="mt-1 w-full"
+              className="mt-1 h-9 w-full px-2 text-xs"
               value={addedNameFilter}
               onChange={(e) => setAddedNameFilter(e.target.value)}
               placeholder="ex: fire"
             />
           </div>
-          <div className="min-w-[170px] shrink-0">
+          <div className="md:col-span-2">
             <label className="text-xs text-text">Nível (círculo)</label>
             <Select
-              className="mt-1 w-full"
+              className="mt-1 h-9 w-full px-2 text-xs"
               value={addedLevelFilter}
               onChange={(e) => {
                 const v = e.target.value
@@ -311,10 +312,10 @@ export function AddedSpellsCard(props: {
               ))}
             </Select>
           </div>
-          <div className="min-w-[190px] shrink-0">
+          <div className="md:col-span-2">
             <label className="text-xs text-text">Escola</label>
             <Select
-              className="mt-1 w-full"
+              className="mt-1 h-9 w-full px-2 text-xs"
               value={addedSchoolFilter}
               onChange={(e) => setAddedSchoolFilter(e.target.value)}
             >
@@ -327,10 +328,10 @@ export function AddedSpellsCard(props: {
             </Select>
           </div>
 
-          <div className="min-w-[190px] shrink-0">
+          <div className="md:col-span-2">
             <label className="text-xs text-text">Preparadas</label>
             <Select
-              className="mt-1 w-full"
+              className="mt-1 h-9 w-full px-2 text-xs"
               value={addedPreparedFilter}
               onChange={(e) => setAddedPreparedFilter(e.target.value as typeof addedPreparedFilter)}
             >
@@ -339,10 +340,10 @@ export function AddedSpellsCard(props: {
               <option value="notPrepared">Só não preparadas</option>
             </Select>
           </div>
-          <div className="min-w-[190px] shrink-0">
+          <div className="md:col-span-2">
             <label className="text-xs text-text">Fonte</label>
             <Select
-              className="mt-1 w-full"
+              className="mt-1 h-9 w-full px-2 text-xs"
               value={addedClassFilter}
               onChange={(e) => setAddedClassFilter(e.target.value)}
             >
@@ -357,19 +358,19 @@ export function AddedSpellsCard(props: {
           </div>
         </div>
 
-        <div className="mt-3 overflow-auto rounded-lg border border-border">
-          <table className="w-full min-w-[1320px] table-fixed border-collapse">
+        <div className="mt-3 w-full overflow-x-auto rounded-lg border border-border md:overflow-visible">
+          <table className="w-full min-w-[980px] table-auto border-collapse md:min-w-full">
             <thead className="bg-accentBg">
               <tr className="text-left text-xs text-text">
-                <th className="w-[70px] whitespace-nowrap p-2">Prep.</th>
-                <th className="w-[260px] p-2">Nome</th>
-                <th className="w-[70px] whitespace-nowrap p-2">Nível</th>
-                <th className="w-[130px] p-2">Escola</th>
-                <th className="w-[90px] whitespace-nowrap p-2">Comp.</th>
-                <th className="w-[440px] p-2">Dano / Detalhes</th>
-                <th className="w-[220px] p-2">Conjurar como</th>
-                <th className="w-[210px] p-2">Classes (API)</th>
-                <th className="w-[110px] p-2"></th>
+                <th className="whitespace-nowrap p-2">Prep.</th>
+                <th className="p-2">Nome</th>
+                <th className="whitespace-nowrap p-2">Nível</th>
+                <th className="p-2">Escola</th>
+                <th className="whitespace-nowrap p-2">Comp.</th>
+                <th className="p-2">Dano / Detalhes</th>
+                <th className="p-2">Conjurar como</th>
+                <th className="p-2">Classes (API)</th>
+                <th className="p-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -434,9 +435,9 @@ export function AddedSpellsCard(props: {
                   const descLower = (detail?.desc ?? []).join(' ').toLowerCase()
 
                   const saveAbility = ((): Ability | null => {
-                    const idx = detail?.dc?.dc_type?.index
+                    const idx = detail?.dc?.dc_type?.index?.trim()
                     if (idx && (ABILITY_KEYS as string[]).includes(idx)) return idx as Ability
-                    const name = detail?.dc?.dc_type?.name?.toLowerCase()
+                    const name = detail?.dc?.dc_type?.name?.trim().toLowerCase()
                     if (!name) return null
                     if (name === 'str' || name === 'strength') return 'str'
                     if (name === 'dex' || name === 'dexterity') return 'dex'
@@ -446,7 +447,9 @@ export function AddedSpellsCard(props: {
                     if (name === 'cha' || name === 'charisma') return 'cha'
                     return null
                   })()
-                  const saveTypeName = saveAbility ? abilityShort(saveAbility) : detail?.dc?.dc_type?.name
+                  const saveTypeName = saveAbility
+                    ? abilityShort(saveAbility)
+                    : (detail?.dc?.dc_type?.name?.trim() || undefined)
 
                   const usesSave = Boolean(saveTypeName) || descLower.includes('saving throw')
                   const usesAttack = typeof detail?.attack_type === 'string' || descLower.includes('spell attack')
@@ -579,7 +582,7 @@ export function AddedSpellsCard(props: {
                             )}
                           </div>
                         </td>
-                        <td className="p-2 align-top text-textH">
+                        <td className="p-2 align-top text-textH break-words">
                           <button
                             className="w-full text-left"
                             onClick={() => {
@@ -590,8 +593,8 @@ export function AddedSpellsCard(props: {
                             }}
                             title="Abrir descrição / editar"
                           >
-                            <div className="flex items-center gap-2 font-medium">
-                              <span className="underline decoration-accentBorder underline-offset-2">
+                            <div className="flex flex-wrap items-center gap-2 font-medium">
+                              <span className="min-w-0 break-words underline decoration-accentBorder underline-offset-2">
                                 {displayName}
                               </span>
                               {!allowedSchool ? badge('Fora da escola') : null}
@@ -604,7 +607,7 @@ export function AddedSpellsCard(props: {
                           </button>
                         </td>
                         <td className="p-2 align-top text-text">{detail ? detail.level : '…'}</td>
-                        <td className="p-2 align-top text-text">{detail ? schoolLabel(detail.school.name) : '…'}</td>
+                        <td className="p-2 align-top text-text break-words">{detail ? schoolLabel(detail.school.name) : '…'}</td>
                         <td className="p-2 align-top text-text">
                           {detail ? (
                             (() => {
@@ -650,76 +653,94 @@ export function AddedSpellsCard(props: {
                           )}
                         </td>
                         <td className="p-2 align-top text-text">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono">{damageEstimate}</span>
-
-                            {spellBaseLevel === 0 ? null : (
-                              <Select
-                                className="h-8 w-[92px] px-2 text-xs"
-                                value={effectiveSlot}
-                                onChange={(e) => {
-                                  const castSlotLevel = Number(e.target.value) as MagicCircleLevel
-                                  updateCharacter(activeCharacter.id, (c) => ({
-                                    ...c,
-                                    spells: c.spells.map((s) =>
-                                      s.spellIndex === entry.spellIndex
-                                        ? { ...s, castSlotLevel }
-                                        : s,
-                                    ),
-                                  }))
-                                }}
-                                title="Círculo usado (para dano/escala)"
-                              >
-                                {slotOptions.map((lvl) => (
-                                  <option key={lvl} value={lvl}>
-                                    Círc. {lvl}
-                                  </option>
-                                ))}
-                              </Select>
-                            )}
+                          <div className="md:hidden">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenUpcastSpellIndex(null)
+                                setOpenMaterialSpellIndex(null)
+                                setOpenDetailsSpellIndex(entry.spellIndex)
+                              }}
+                              title="Abrir dano e detalhes"
+                            >
+                              Ver detalhes
+                            </Button>
                           </div>
 
-                          {(combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
-                            <div className="relative mt-1">
-                              <div className="grid w-full min-w-0 gap-1.5 [grid-template-columns:repeat(auto-fit,minmax(132px,1fr))]">
-                                {combatBadgeNodes}
-                                {infoBadgeNodes}
-                              </div>
+                          <div className="hidden md:block">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono">{damageEstimate}</span>
 
-                              {upcastLabel ? (
-                                <div className="mt-1 flex">
-                                  <button
-                                    type="button"
-                                    className="inline-flex shrink-0 items-center rounded-md border border-accentBorder bg-accentBg px-2 py-1 text-xs leading-4 text-textH whitespace-nowrap hover:opacity-90"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setOpenUpcastSpellIndex((prev) =>
-                                        prev === entry.spellIndex ? null : entry.spellIndex,
-                                      )
-                                    }}
-                                    aria-expanded={openUpcastSpellIndex === entry.spellIndex}
-                                    aria-controls={`upcast-${entry.spellIndex}`}
-                                    title="Ver escala (níveis superiores)"
-                                  >
-                                    Ver escala
-                                  </button>
-                                </div>
-                              ) : null}
-
-                              {upcastLabel && openUpcastSpellIndex === entry.spellIndex ? (
-                                <div
-                                  id={`upcast-${entry.spellIndex}`}
-                                  className="absolute left-0 top-full z-10 mt-1 w-[min(520px,90vw)] rounded-md border border-border bg-bg p-2 text-xs text-text shadow-theme whitespace-normal break-words"
+                              {spellBaseLevel === 0 ? null : (
+                                <Select
+                                  className="h-8 !w-[92px] shrink-0 px-2 text-xs"
+                                  value={effectiveSlot}
+                                  onChange={(e) => {
+                                    const castSlotLevel = Number(e.target.value) as MagicCircleLevel
+                                    updateCharacter(activeCharacter.id, (c) => ({
+                                      ...c,
+                                      spells: c.spells.map((s) =>
+                                        s.spellIndex === entry.spellIndex
+                                          ? { ...s, castSlotLevel }
+                                          : s,
+                                      ),
+                                    }))
+                                  }}
+                                  title="Círculo usado (para dano/escala)"
                                 >
-                                  {upcastLabel}
-                                </div>
-                              ) : null}
+                                  {slotOptions.map((lvl) => (
+                                    <option key={lvl} value={lvl}>
+                                      Círc. {lvl}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
                             </div>
-                          ) : null}
+
+                            {(combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
+                              <div className="relative mt-1">
+                                <div className="flex flex-col items-start gap-1.5">
+                                  {combatBadgeNodes}
+                                  {infoBadgeNodes}
+                                </div>
+
+                                {upcastLabel ? (
+                                  <div className="mt-1 flex">
+                                    <button
+                                      type="button"
+                                      className="inline-flex shrink-0 items-center rounded-md border border-accentBorder bg-accentBg px-2 py-1 text-xs leading-4 text-textH whitespace-nowrap hover:opacity-90"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setOpenUpcastSpellIndex((prev) =>
+                                          prev === entry.spellIndex ? null : entry.spellIndex,
+                                        )
+                                      }}
+                                      aria-expanded={openUpcastSpellIndex === entry.spellIndex}
+                                      aria-controls={`upcast-${entry.spellIndex}`}
+                                      title="Ver escala (níveis superiores)"
+                                    >
+                                      Ver escala
+                                    </button>
+                                  </div>
+                                ) : null}
+
+                                {upcastLabel && openUpcastSpellIndex === entry.spellIndex ? (
+                                  <div
+                                    id={`upcast-${entry.spellIndex}`}
+                                    className="absolute left-0 top-full z-10 mt-1 w-[min(520px,90vw)] rounded-md border border-border bg-bg p-2 text-xs text-text shadow-theme whitespace-normal break-words"
+                                  >
+                                    {upcastLabel}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="p-2 align-top">
                           <Select
-                            className="h-9 w-full min-w-0 px-2 py-1 text-sm"
+                            className="h-9 w-full min-w-0 truncate px-2 py-1 text-sm"
                             value={entry.sourceType === 'feat' ? '__feat__' : (entry.sourceClassId ?? '')}
                             onChange={(e) => {
                               const v = e.target.value
@@ -784,7 +805,7 @@ export function AddedSpellsCard(props: {
                                 placeholder="Nome do feat (ex: Fey Touched)"
                               />
                               <Select
-                                className="h-8 w-full px-2 text-xs"
+                                className="h-8 w-full min-w-0 truncate px-2 text-xs"
                                 value={entry.featAbility ?? 'cha'}
                                 onChange={(e) => {
                                   const featAbility = e.target.value as Ability
@@ -814,7 +835,7 @@ export function AddedSpellsCard(props: {
                             <div className="mt-1 text-[11px] text-text">Atributo: {abilityShort(entry.featAbility ?? 'cha')}</div>
                           ) : null}
                         </td>
-                        <td className="p-2 align-top text-text">
+                        <td className="p-2 align-top text-text break-words">
                           {apiClasses.length ? apiClasses.join(', ') : detail ? '(none)' : '…'}
                         </td>
                         <td className="p-2 align-top">
@@ -829,10 +850,85 @@ export function AddedSpellsCard(props: {
                         </td>
                       </tr>
 
+                      {openDetailsSpellIndex === entry.spellIndex ? (
+                        <tr className="md:hidden">
+                          <td colSpan={9} className="p-0">
+                            <div
+                              className="fixed inset-0 z-50 bg-black/40 p-4"
+                              onClick={() => setOpenDetailsSpellIndex(null)}
+                              role="presentation"
+                            >
+                              <div
+                                className="mx-auto w-full max-w-[560px] rounded-xl border border-border bg-bg shadow-theme"
+                                onClick={(e) => e.stopPropagation()}
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label="Detalhes da magia"
+                              >
+                                <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-textH break-words">{displayName}</div>
+                                    <div className="mt-1 text-xs text-text">Dano / detalhes</div>
+                                  </div>
+                                  <Button size="sm" variant="secondary" onClick={() => setOpenDetailsSpellIndex(null)}>
+                                    Fechar
+                                  </Button>
+                                </div>
+
+                                <div className="p-4">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-mono text-sm text-textH">{damageEstimate}</span>
+
+                                    {spellBaseLevel === 0 ? null : (
+                                      <Select
+                                        className="h-8 !w-[92px] shrink-0 px-2 text-xs"
+                                        value={effectiveSlot}
+                                        onChange={(e) => {
+                                          const castSlotLevel = Number(e.target.value) as MagicCircleLevel
+                                          updateCharacter(activeCharacter.id, (c) => ({
+                                            ...c,
+                                            spells: c.spells.map((s) =>
+                                              s.spellIndex === entry.spellIndex
+                                                ? { ...s, castSlotLevel }
+                                                : s,
+                                            ),
+                                          }))
+                                        }}
+                                        title="Círculo usado (para dano/escala)"
+                                      >
+                                        {slotOptions.map((lvl) => (
+                                          <option key={lvl} value={lvl}>
+                                            Círc. {lvl}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    )}
+                                  </div>
+
+                                  {combatBadgeNodes.length || infoBadgeNodes.length ? (
+                                    <div className="mt-3 flex flex-col items-start gap-1.5">
+                                      {combatBadgeNodes}
+                                      {infoBadgeNodes}
+                                    </div>
+                                  ) : null}
+
+                                  {upcastLabel ? (
+                                    <div className="mt-3 rounded-lg border border-border bg-[color:var(--social-bg)] p-3 text-xs text-text whitespace-normal break-words">
+                                      <div className="text-[11px] font-semibold text-textH">Escala (níveis superiores)</div>
+                                      <div className="mt-1">{upcastLabel}</div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+
                       {isOpen ? (
                         <tr className="border-t border-border">
                           <td className="p-3" colSpan={9}>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_1fr]">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_minmax(0,1fr)]">
                               <div>
                                 <div className="text-xs font-semibold text-textH">Nome em português</div>
                                 <div className="mt-1 text-xs text-text">Opcional. Se preenchido, aparece na lista.</div>

@@ -553,8 +553,8 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-6 md:grid-cols-[320px_1fr]">
-        <aside className="space-y-3">
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-6 md:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-3">
           <Card>
             <CardHeader>
               <div className="text-sm font-semibold text-textH">Sincronização (grupo)</div>
@@ -651,7 +651,7 @@ function App() {
           </Card>
         </aside>
 
-        <section className="space-y-4">
+        <section className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
               <div className="text-sm font-semibold text-textH">Ficha rápida</div>
