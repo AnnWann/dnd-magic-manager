@@ -21,6 +21,7 @@ import { homebrewToDndSpell } from '../lib/homebrew'
 import { estimateSpellDamageDice, upcastRuleLabel } from '../lib/spellDamage'
 import { isAllowedSchoolForClass } from '../lib/spellAccess'
 import { spellMeta } from '../lib/spellMeta'
+import { castTimeKindFromText, castTimeKindLabelPt } from '../lib/castTime'
 import {
   SCHOOL_NAME_PT,
   apiClassLabel,
@@ -494,6 +495,9 @@ export function AddedSpellsCard(props: {
                     textForNumericMods,
                   })
 
+                  const castTimeKind =
+                    entry.castTimeKind ?? castTimeKindFromText((detail as DndSpell | undefined)?.casting_time)
+
                   const manualEffects = entry.effects ?? []
 
                   const combatBadgeNodes: ReactNode[] = []
@@ -508,6 +512,12 @@ export function AddedSpellsCard(props: {
                   meta.numericMods.forEach((m) => combatBadgeNodes.push(badge(m, { kind: 'grid', title: m })))
 
                   const infoBadgeNodes: ReactNode[] = []
+                  if (castTimeKind) {
+                    const label = castTimeKindLabelPt(castTimeKind)
+                    const t = `Conjuração: ${label}`
+                    const nb = `Conj. ${label}`.split(' ').join('\u00A0')
+                    infoBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
+                  }
                   if (meta.range) {
                     const t = `Alc. ${meta.range}`
                     const nb = t.split(' ').join('\u00A0')
@@ -1020,6 +1030,32 @@ export function AddedSpellsCard(props: {
                                   }}
                                   placeholder="ex: Aperto Chocante"
                                 />
+
+                                <div className="mt-3">
+                                  <div className="text-xs font-semibold text-textH">Conjuração</div>
+                                  <div className="mt-1 text-xs text-text">
+                                    Define se a magia usa Ação, Bônus ou Reação.
+                                  </div>
+                                  <Select
+                                    className="mt-2"
+                                    value={entry.castTimeKind ?? ''}
+                                    onChange={(e) => {
+                                      const raw = e.target.value
+                                      const castTimeKind = (raw || undefined) as AddedSpell['castTimeKind']
+                                      updateCharacter(activeCharacter.id, (c) => ({
+                                        ...c,
+                                        spells: c.spells.map((s) =>
+                                          s.spellIndex === entry.spellIndex ? { ...s, castTimeKind } : s,
+                                        ),
+                                      }))
+                                    }}
+                                  >
+                                    <option value="">Auto</option>
+                                    <option value="action">Ação</option>
+                                    <option value="bonus">Bônus</option>
+                                    <option value="reaction">Reação</option>
+                                  </Select>
+                                </div>
 
                                 <div className="mt-3 flex gap-2">
                                   <Button

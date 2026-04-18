@@ -91,8 +91,14 @@ export function useRemoteAppState() {
   })
   const [status, setStatus] = useState<SyncStatus>({ kind: 'idle' })
 
+  const stateRef = useRef<AppStateV1>(state)
+
   const hydratedFromRemote = useRef(false)
   const saveTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   useEffect(() => {
     writeLocalStorageJson(LOCAL_STATE_KEY, state)
@@ -115,6 +121,10 @@ export function useRemoteAppState() {
       hydratedFromRemote.current = true
       if (data.state) {
         setState(data.state)
+      } else {
+        // Bootstrap: if the key has no remote state yet, persist the current local state
+        // so subsequent pulls work across devices without requiring an extra local change.
+        await apiPutState(syncKey, stateRef.current)
       }
       setStatus({ kind: 'synced', at: Date.now() })
     } catch (err: unknown) {

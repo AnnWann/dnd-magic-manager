@@ -4,6 +4,8 @@ export type ProficiencyMode = 'totalLevel' | 'classLevel'
 
 export type MagicCircleLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
+export type SpellCastTimeKind = 'action' | 'bonus' | 'reaction'
+
 export type HomebrewSpellMechanic = 'none' | 'attack' | 'save' | 'both'
 
 export type SpellEffectTarget =
@@ -102,6 +104,9 @@ export interface AddedSpell {
   /** Optional: slot/circle level used for damage estimation / upcasting */
   castSlotLevel?: MagicCircleLevel
 
+  /** Optional: how this spell is cast in combat (action economy) */
+  castTimeKind?: SpellCastTimeKind
+
   /** Optional: whether this spell is currently prepared (when applicable) */
   prepared?: boolean
 
@@ -130,6 +135,8 @@ export interface DndApiRef {
 
 export interface DndSpell extends DndApiRef {
   level: number
+  /** 5e API field (examples: "1 action", "1 bonus action", "1 reaction, which you take when ...") */
+  casting_time?: string
   school: DndApiRef
   classes: DndApiRef[]
   /** Spell components from 5e API, e.g. ["V","S","M"] */

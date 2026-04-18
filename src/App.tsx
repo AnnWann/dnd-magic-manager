@@ -9,6 +9,7 @@ import type {
   MagicCircleLevel,
   HomebrewSpell,
   HomebrewSpellMechanic,
+  SpellCastTimeKind,
 } from './types'
 import { getSpell, listSpells } from './lib/dnd5eApi'
 import {
@@ -25,6 +26,7 @@ import { newCharacter } from './lib/character'
 import { preparedLimitForClass } from './lib/prepared'
 import { spellListClassIndex } from './lib/spellAccess'
 import { homebrewToDndSpell, isHomebrewIndex } from './lib/homebrew'
+import { castTimeKindFromText } from './lib/castTime'
 import {
   CLASS_OPTIONS,
   SCHOOL_NAME_PT,
@@ -112,6 +114,7 @@ function App() {
   const [hbRange, setHbRange] = useState('')
   const [hbArea, setHbArea] = useState('')
   const [hbDuration, setHbDuration] = useState('')
+  const [hbCastTimeKind, setHbCastTimeKind] = useState<SpellCastTimeKind>('action')
   const [hbConcentration, setHbConcentration] = useState(false)
 
   const [hbSourceType, setHbSourceType] = useState<'class' | 'feat'>('class')
@@ -226,6 +229,7 @@ function App() {
         sourceClassId,
         addedAt: Date.now(),
         castSlotLevel: (detail.level as MagicCircleLevel) ?? 1,
+        castTimeKind: castTimeKindFromText(detail.casting_time),
         officialDescPt,
         officialHigherLevelPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
       }
@@ -492,6 +496,7 @@ function App() {
       sourceClassId,
       addedAt: Date.now(),
       castSlotLevel: (detail.level as MagicCircleLevel) ?? 1,
+      castTimeKind: castTimeKindFromText(detail.casting_time),
     }
 
     updateCharacter(activeCharacter.id, (c) => ({
@@ -555,6 +560,7 @@ function App() {
       featAbility: hbSourceType === 'feat' ? hbFeatAbility : undefined,
       addedAt: Date.now(),
       castSlotLevel: hbLevel,
+      castTimeKind: hbCastTimeKind,
     }
 
     updateCharacter(activeCharacter.id, (c) => ({
@@ -580,6 +586,7 @@ function App() {
     setHbRange('')
     setHbArea('')
     setHbDuration('')
+    setHbCastTimeKind('action')
     setHbConcentration(false)
   }
 
@@ -1042,7 +1049,7 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                     <div>
                       <label className="text-xs text-text">Duração</label>
                       <Input
@@ -1051,6 +1058,18 @@ function App() {
                         onChange={(e) => setHbDuration(e.target.value)}
                         placeholder="ex: 1 minuto / 10 minutos / 1 hora"
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text">Conjuração</label>
+                      <Select
+                        className="mt-1"
+                        value={hbCastTimeKind}
+                        onChange={(e) => setHbCastTimeKind(e.target.value as SpellCastTimeKind)}
+                      >
+                        <option value="action">Ação</option>
+                        <option value="bonus">Bônus</option>
+                        <option value="reaction">Reação</option>
+                      </Select>
                     </div>
                     <div>
                       <label className="text-xs text-text">Concentração</label>
