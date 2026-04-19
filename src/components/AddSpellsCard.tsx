@@ -24,6 +24,8 @@ export function AddSpellsCard(props: {
   setUnaddedSchoolFilter: Dispatch<SetStateAction<string>>
   unaddedClassFilter: string
   setUnaddedClassFilter: Dispatch<SetStateAction<string>>
+  hideUa: boolean
+  setHideUa: Dispatch<SetStateAction<boolean>>
   unaddedResults: DndApiRef[]
   activeCharacter: Character
   activeCharacterSpellsSet: Set<string>
@@ -45,6 +47,8 @@ export function AddSpellsCard(props: {
     setUnaddedSchoolFilter,
     unaddedClassFilter,
     setUnaddedClassFilter,
+    hideUa,
+    setHideUa,
     unaddedResults,
     activeCharacter,
     activeCharacterSpellsSet,
@@ -213,6 +217,14 @@ export function AddSpellsCard(props: {
               <option value="off">Não mostrar</option>
               <option value="on">Mostrar</option>
             </Select>
+          </div>
+
+          <div className="md:col-span-4">
+            <label className="text-xs text-text">Conteúdo</label>
+            <label className="mt-2 flex items-center gap-2 text-xs text-text">
+              <input type="checkbox" checked={hideUa} onChange={(e) => setHideUa(e.target.checked)} />
+              <span>Ocultar UA</span>
+            </label>
           </div>
         </div>
 

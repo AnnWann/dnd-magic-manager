@@ -228,6 +228,9 @@ export interface Character {
 
   /** Optional: Sorcerer resource tracker (used sorcery points; max is based on Sorcerer level). */
   sorceryPointsUsed?: number
+
+  /** Optional: Sorcerer metamagic picks (IDs from /public/metamagics.v1.json). */
+  metamagics?: string[]
 }
 
 export interface DndApiRef {

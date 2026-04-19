@@ -238,6 +238,8 @@ function App() {
   const [addedClassFilter, setAddedClassFilter] = useState<string>('any')
   const [addedPreparedFilter, setAddedPreparedFilter] = useState<'any' | 'prepared' | 'notPrepared'>('any')
 
+  const [hideUa, setHideUa] = useState(true)
+
   const [unaddedSearch, setUnaddedSearch] = useState('')
 
   const [unaddedLevelFilter, setUnaddedLevelFilter] = useState<MagicCircleLevel | 'any'>('any')
@@ -606,7 +608,9 @@ function App() {
   const filteredAddedSpells = useMemo(() => {
     if (!activeCharacter) return []
     const nameQ = addedNameFilter.trim().toLowerCase()
+    const isUa = (name: string) => name.toLowerCase().includes('(ua)')
     const filtered = activeCharacter.spells.filter((entry) => {
+      if (hideUa && isUa(entry.displayNamePt?.trim() || entry.spellName)) return false
       if (nameQ) {
         const hay = `${entry.displayNamePt?.trim() || ''} ${entry.spellName}`.toLowerCase()
         if (!hay.includes(nameQ)) return false
@@ -666,7 +670,7 @@ function App() {
 
       return a.spellIndex.localeCompare(b.spellIndex)
     })
-  }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, spellDetails, preparedMeta])
+  }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, hideUa, spellDetails, preparedMeta])
 
   const availableSpellRefs = useMemo((): DndApiRef[] => {
     const homebrews: DndApiRef[] = Object.entries(homebrewLibrary).map(([index, hb]) => ({
@@ -762,7 +766,10 @@ function App() {
       unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
     if (!q && !hasFilters) return [] as DndApiRef[]
 
-    const base = availableSpellRefs.filter((s) => !activeCharacterSpellsSet.has(s.index))
+    const isUa = (name: string) => name.toLowerCase().includes('(ua)')
+    const base = availableSpellRefs
+      .filter((s) => !activeCharacterSpellsSet.has(s.index))
+      .filter((s) => (hideUa ? !isUa(s.name) : true))
     if (!q) return base.slice(0, 200)
 
     const matches = (idx: string, nameFallback: string) => {
@@ -771,7 +778,7 @@ function App() {
     }
 
     return base.filter((s) => matches(s.index, s.name)).slice(0, 200)
-  }, [activeCharacterSpellsSet, availableSpellRefs, spellNameAliases, unaddedClassFilter, unaddedLevelFilter, unaddedSchoolFilter, unaddedSearch])
+  }, [activeCharacterSpellsSet, availableSpellRefs, hideUa, spellNameAliases, unaddedClassFilter, unaddedLevelFilter, unaddedSchoolFilter, unaddedSearch])
 
   const needsUnaddedDetails =
     unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
@@ -2100,6 +2107,8 @@ function App() {
             setAddedPreparedFilter={setAddedPreparedFilter}
             addedClassFilter={addedClassFilter}
             setAddedClassFilter={setAddedClassFilter}
+            hideUa={hideUa}
+            setHideUa={setHideUa}
             openSpellIndex={openSpellIndex}
             setOpenSpellIndex={setOpenSpellIndex}
             openSpellTab={openSpellTab}
@@ -2121,6 +2130,8 @@ function App() {
             setUnaddedSchoolFilter={setUnaddedSchoolFilter}
             unaddedClassFilter={unaddedClassFilter}
             setUnaddedClassFilter={setUnaddedClassFilter}
+            hideUa={hideUa}
+            setHideUa={setHideUa}
             unaddedResults={unaddedResults}
             activeCharacter={activeCharacter}
             activeCharacterSpellsSet={activeCharacterSpellsSet}
