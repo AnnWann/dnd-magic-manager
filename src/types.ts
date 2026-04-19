@@ -145,6 +145,8 @@ export interface SpellSlotUsage {
 
 export type RestResetKind = 'longRest' | 'shortRest'
 
+export type PrimaryRollDisplayMode = 'auto' | 'save' | 'attack' | 'damage' | 'custom'
+
 export interface SpellFreeUses {
   /** Total free uses available before a reset (e.g. 1/day). */
   max: number
@@ -196,6 +198,11 @@ export interface AddedSpell {
 
   /** Optional: per-character override for the material components text shown in the V/S/M tooltip. */
   materialOverride?: string
+
+  /** Optional: manual override for the main label shown in the "Dano / detalhes" column. */
+  primaryRollMode?: PrimaryRollDisplayMode
+  /** Optional: custom text shown when primaryRollMode === 'custom'. */
+  primaryRollCustom?: string
 
   /** Optional: cached translation of the official API description (PT-BR) */
   officialDescPt?: string[]

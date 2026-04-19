@@ -8,6 +8,7 @@ import type {
   DndSpell,
   HomebrewSpellMechanic,
   MagicCircleLevel,
+  PrimaryRollDisplayMode,
   RestResetKind,
   SpellEffect,
   SpellEffectMode,
@@ -1066,7 +1067,7 @@ export function AddedSpellsCard(props: {
                     slotLevel: effectiveSlot,
                   })
 
-                  const primaryRollLabel = (() => {
+                  const autoPrimaryRollLabel = (() => {
                     if (damageEstimate !== '—') return damageEstimate
                     if (usesSave) {
                       if (dcSpell !== null && saveTypeName) return `CD ${dcSpell} ${saveTypeName}`
@@ -1078,7 +1079,36 @@ export function AddedSpellsCard(props: {
                     return damageEstimate
                   })()
 
-                  const detailsSubtitle = damageEstimate === '—' && usesSave ? 'Teste / detalhes' : 'Dano / detalhes'
+                  const primaryRollMode = (entry.primaryRollMode ?? 'auto') as PrimaryRollDisplayMode
+                  const primaryRollLabel = (() => {
+                    const saveLabel = () => {
+                      if (dcSpell !== null && saveTypeName) return `CD ${dcSpell} ${saveTypeName}`
+                      if (dcSpell !== null) return `CD ${dcSpell}`
+                      if (saveTypeName) return `TR ${saveTypeName}`
+                      return 'TR'
+                    }
+                    const attackLabel = () => (atkSpell !== null ? `ATQ ${formatSigned(atkSpell)}` : 'ATQ')
+
+                    if (primaryRollMode === 'custom') {
+                      const t = entry.primaryRollCustom?.trim()
+                      if (t) return t
+                    }
+                    if (primaryRollMode === 'save') return saveLabel()
+                    if (primaryRollMode === 'attack') return attackLabel()
+                    if (primaryRollMode === 'damage') return damageEstimate
+                    return autoPrimaryRollLabel
+                  })()
+
+                  const detailsSubtitle =
+                    primaryRollMode === 'save'
+                      ? 'Teste / detalhes'
+                      : primaryRollMode === 'attack'
+                        ? 'Ataque / detalhes'
+                        : primaryRollMode === 'damage'
+                          ? 'Dano / detalhes'
+                          : damageEstimate === '—' && usesSave
+                            ? 'Teste / detalhes'
+                            : 'Dano / detalhes'
 
                   const textForNumericMods = (() => {
                     if (entry.homebrew) {
@@ -1717,6 +1747,60 @@ export function AddedSpellsCard(props: {
                                         />
                                         Mods
                                       </label>
+                                    </div>
+
+                                    <div className="mt-3 border-t border-border pt-3">
+                                      <div className="text-[11px] font-semibold text-textH">Dano / detalhes (coluna)</div>
+                                      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                        <div>
+                                          <label className="text-[11px] text-text">Mostrar</label>
+                                          <Select
+                                            className="mt-1 h-9"
+                                            value={primaryRollMode}
+                                            onChange={(e) => {
+                                              const mode = e.target.value as PrimaryRollDisplayMode
+                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                ...c,
+                                                spells: c.spells.map((s) => {
+                                                  if (s.spellIndex !== entry.spellIndex) return s
+                                                  if (mode === 'auto') {
+                                                    return { ...s, primaryRollMode: undefined, primaryRollCustom: undefined }
+                                                  }
+                                                  return { ...s, primaryRollMode: mode }
+                                                }),
+                                              }))
+                                            }}
+                                          >
+                                            <option value="auto">Auto</option>
+                                            <option value="save">CD/TR</option>
+                                            <option value="attack">ATQ</option>
+                                            <option value="damage">Dano</option>
+                                            <option value="custom">Texto</option>
+                                          </Select>
+                                        </div>
+
+                                        {primaryRollMode === 'custom' ? (
+                                          <div>
+                                            <label className="text-[11px] text-text">Texto</label>
+                                            <Input
+                                              className="mt-1 h-9"
+                                              value={entry.primaryRollCustom ?? ''}
+                                              onChange={(e) => {
+                                                const txt = e.target.value
+                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                  ...c,
+                                                  spells: c.spells.map((s) =>
+                                                    s.spellIndex === entry.spellIndex
+                                                      ? { ...s, primaryRollMode: 'custom', primaryRollCustom: txt || undefined }
+                                                      : s,
+                                                  ),
+                                                }))
+                                              }}
+                                              placeholder="ex: CD 15 FOR"
+                                            />
+                                          </div>
+                                        ) : null}
+                                      </div>
                                     </div>
                                   </div>
 
