@@ -607,7 +607,7 @@ function App() {
 
     const damageDice = (() => {
       if (hbDamageKind === 'none') return undefined
-      const count = clampInt(hbDamageCount, 1, 99)
+      const count = clampInt(hbDamageCount, 0, 99)
       const size = hbDamageDie
       const bonus = clampInt(hbDamageBonus, 0, 999)
       return `${count}d${size}${bonus ? `+${bonus}` : ''}`
@@ -1327,7 +1327,7 @@ function App() {
                           value={hbDamageKind === 'dice' ? hbDamageCount : ''}
                           disabled={hbDamageKind !== 'dice'}
                           onChange={(e) => setHbDamageCount(Number(e.target.value))}
-                          min={1}
+                          min={0}
                           max={99}
                           placeholder="Qtd"
                           title="Quantidade de dados"
@@ -1356,7 +1356,7 @@ function App() {
                         />
                       </div>
                       <div className="mt-1 text-[11px] text-text">
-                        Usado só para estimativa de dano (ex.: 2d6+3).
+                        Usado só para estimativa de dano (ex.: 2d6+3). Pode ser 0 (ex.: 0d6) para cantrips que começam a dar dano no nível 5.
                       </div>
                     </div>
                     <div>

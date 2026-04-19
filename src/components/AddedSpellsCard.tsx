@@ -12,6 +12,7 @@ import type {
   SpellEffectTarget,
 } from '../types'
 import {
+  cantripDiceMultiplier,
   formatSigned,
   magicCircleOptions,
   spellAttackBonus,
@@ -157,6 +158,7 @@ export function AddedSpellsCard(props: {
     { value: 'ability', label: 'Atributo' },
     { value: 'condition', label: 'Condição' },
     { value: 'economy', label: 'Remover (ações)' },
+    { value: 'conditionalDamage', label: 'Dano condicional' },
   ]
 
   const conditionOptions: Array<{ value: ConditionKey; label: string }> = [
@@ -188,6 +190,7 @@ export function AddedSpellsCard(props: {
 
   const modeOptionsForTarget = (t: SpellEffectTarget): SpellEffectMode[] => {
     if (t === 'condition') return ['apply']
+    if (t === 'conditionalDamage') return ['apply']
     if (t === 'economy') return ['remove']
     if (t === 'ability') return ['add', 'sub', 'set']
     if (t === 'ac' || t === 'speed' || t === 'initiative') return ['add', 'sub', 'set']
@@ -207,7 +210,10 @@ export function AddedSpellsCard(props: {
     return 'Turno'
   }
 
-  const formatEffectBadge = (eff: SpellEffect): string | null => {
+  const formatEffectBadge = (
+    eff: SpellEffect,
+    ctx?: { spell?: DndSpell; characterLevel: number; slotLevel: MagicCircleLevel },
+  ): string | null => {
     const round1 = (n: number) => Math.round(n * 10) / 10
     const fmt = (n: number) => {
       const r = round1(n)
@@ -219,6 +225,17 @@ export function AddedSpellsCard(props: {
     const needsAbility = eff.target === 'attack' || eff.target === 'save' || eff.target === 'ability'
     const abilitySuffix = needsAbility && eff.ability ? ` ${abilityLabel(eff.ability)}` : ''
 
+    const parseDice = (text: string): { count: number; size: number } | null => {
+      const m = /(\d+)d(\d+)/i.exec(text)
+      if (!m) return null
+      const count = Number(m[1])
+      const size = Number(m[2])
+      if (!Number.isFinite(count) || !Number.isFinite(size) || count <= 0 || size <= 0) return null
+      return { count, size }
+    }
+
+    const formatDice = (d: { count: number; size: number }): string => `${d.count}d${d.size}`
+
     if (eff.mode === 'remove') {
       if (eff.target !== 'economy') return null
       if (!eff.economy) return null
@@ -226,6 +243,35 @@ export function AddedSpellsCard(props: {
     }
 
     if (eff.mode === 'apply') {
+      if (eff.target === 'conditionalDamage') {
+        const when = eff.damageWhen?.trim() ? eff.damageWhen.trim() : undefined
+        const rawDice = eff.damageDice?.trim() ? eff.damageDice.trim() : undefined
+        if (!rawDice) return null
+
+        const parsed = parseDice(rawDice)
+        const spell = ctx?.spell
+
+        const scaled = (() => {
+          if (!parsed) return rawDice
+
+          if (spell?.level === 0) {
+            const mult = cantripDiceMultiplier(ctx?.characterLevel ?? 1)
+            return formatDice({ count: parsed.count * mult, size: parsed.size })
+          }
+
+          if (spell && typeof spell.level === 'number' && spell.level > 0) {
+            const base = spell.level
+            const slot = Math.max(base, ctx?.slotLevel ?? base)
+            const extra = Math.max(0, slot - base)
+            return formatDice({ count: parsed.count + extra, size: parsed.size })
+          }
+
+          return rawDice
+        })()
+
+        return when ? `Dano (${when}): ${scaled}` : `Dano cond.: ${scaled}`
+      }
+
       if (eff.target !== 'condition') return null
       if (!eff.condition) return null
       return `Condição: ${conditionLabel(eff.condition)}`
@@ -560,7 +606,11 @@ export function AddedSpellsCard(props: {
                   }
                   if (meta.concentration) infoBadgeNodes.push(badge('Concentração', { kind: 'grid' }))
                   manualEffects.forEach((eff) => {
-                    const txt = formatEffectBadge(eff)
+                    const txt = formatEffectBadge(eff, {
+                      spell: detail,
+                      characterLevel: activeCharacterTotalLevel,
+                      slotLevel: effectiveSlot,
+                    })
                     if (txt) {
                       const nb = txt.split(' ').join('\u00A0')
                       infoBadgeNodes.push(badge(nb, { kind: 'grid', title: txt }))
@@ -1347,15 +1397,19 @@ export function AddedSpellsCard(props: {
                                             const target = eff.target
                                             const modeChoices = modeOptionsForTarget(target)
                                             const needsValue =
-                                              eff.mode === 'add' || eff.mode === 'sub' || eff.mode === 'set'
+                                              (eff.mode === 'add' || eff.mode === 'sub' || eff.mode === 'set') &&
+                                              target !== 'conditionalDamage'
                                             const needsAbility =
                                               target === 'attack' || target === 'save' || target === 'ability'
                                             const needsCondition = target === 'condition'
                                             const needsEconomy = target === 'economy'
+                                            const needsConditionalDamage = target === 'conditionalDamage'
 
-                                            const gridColsMd = needsAbility || needsCondition || needsEconomy
-                                              ? 'md:grid-cols-[170px_140px_160px_1fr_96px]'
-                                              : 'md:grid-cols-[170px_140px_1fr_96px]'
+                                            const gridColsMd = needsConditionalDamage
+                                              ? 'md:grid-cols-[170px_140px_1fr_1fr_96px]'
+                                              : needsAbility || needsCondition || needsEconomy
+                                                ? 'md:grid-cols-[170px_140px_160px_1fr_96px]'
+                                                : 'md:grid-cols-[170px_140px_1fr_96px]'
 
                                             return (
                                               <div
@@ -1399,6 +1453,14 @@ export function AddedSpellsCard(props: {
                                                                 ? (prev.condition ?? 'blinded')
                                                                 : undefined,
                                                             economy: nextTarget === 'economy' ? (prev.economy ?? 'action') : undefined,
+                                                            damageWhen:
+                                                              nextTarget === 'conditionalDamage'
+                                                                ? (prev.damageWhen ?? 'ao se mover')
+                                                                : undefined,
+                                                            damageDice:
+                                                              nextTarget === 'conditionalDamage'
+                                                                ? (prev.damageDice ?? '1d6')
+                                                                : undefined,
                                                             value:
                                                               nextTarget === 'condition' || nextTarget === 'economy' || nextMode === 'adv' || nextMode === 'dis' || nextMode === 'apply' || nextMode === 'remove'
                                                                 ? undefined
@@ -1505,41 +1567,87 @@ export function AddedSpellsCard(props: {
                                                   </div>
                                                 ) : null}
 
-                                                <div>
-                                                  <label className="text-[11px] text-text">{target === 'speed' ? 'Valor (m)' : 'Valor'}</label>
-                                                  <Input
-                                                    className="mt-1 h-9"
-                                                    type="number"
-                                                    disabled={!needsValue}
-                                                    value={(() => {
-                                                      if (!needsValue) return ''
-                                                      if (target !== 'speed') return String(eff.value ?? '')
-                                                      if (typeof eff.value !== 'number') return ''
-                                                      const unit = eff.unit ?? 'ft'
-                                                      const meters = unit === 'm' ? eff.value : eff.value * 0.3
-                                                      const rounded = Math.round(meters * 10) / 10
-                                                      return String(rounded)
-                                                    })()}
-                                                    onChange={(e) => {
-                                                      const raw = e.target.value
-                                                      const value = raw === '' ? undefined : Number(raw)
-                                                      updateCharacter(activeCharacter.id, (c) => ({
-                                                        ...c,
-                                                        spells: c.spells.map((s) => {
-                                                          if (s.spellIndex !== entry.spellIndex) return s
-                                                          const effects = [...(s.effects ?? [])]
-                                                          effects[idx] = {
-                                                            ...effects[idx],
-                                                            value,
-                                                            unit: target === 'speed' ? 'm' : effects[idx]?.unit,
-                                                          }
-                                                          return { ...s, effects }
-                                                        }),
-                                                      }))
-                                                    }}
-                                                    placeholder={needsValue ? 'ex: 2' : '—'}
-                                                  />
-                                                </div>
+                                                {needsConditionalDamage ? (
+                                                  <>
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Quando</label>
+                                                      <Input
+                                                        className="mt-1 h-9"
+                                                        value={eff.damageWhen ?? ''}
+                                                        onChange={(e) => {
+                                                          const damageWhen = e.target.value || undefined
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], damageWhen }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        placeholder="ex: ao se mover"
+                                                      />
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Dados (NdN)</label>
+                                                      <Input
+                                                        className="mt-1 h-9"
+                                                        value={eff.damageDice ?? ''}
+                                                        onChange={(e) => {
+                                                          const damageDice = e.target.value || undefined
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], damageDice }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        placeholder="ex: 2d6"
+                                                      />
+                                                    </div>
+                                                  </>
+                                                ) : (
+                                                  <div>
+                                                    <label className="text-[11px] text-text">{target === 'speed' ? 'Valor (m)' : 'Valor'}</label>
+                                                    <Input
+                                                      className="mt-1 h-9"
+                                                      type="number"
+                                                      disabled={!needsValue}
+                                                      value={(() => {
+                                                        if (!needsValue) return ''
+                                                        if (target !== 'speed') return String(eff.value ?? '')
+                                                        if (typeof eff.value !== 'number') return ''
+                                                        const unit = eff.unit ?? 'ft'
+                                                        const meters = unit === 'm' ? eff.value : eff.value * 0.3
+                                                        const rounded = Math.round(meters * 10) / 10
+                                                        return String(rounded)
+                                                      })()}
+                                                      onChange={(e) => {
+                                                        const raw = e.target.value
+                                                        const value = raw === '' ? undefined : Number(raw)
+                                                        updateCharacter(activeCharacter.id, (c) => ({
+                                                          ...c,
+                                                          spells: c.spells.map((s) => {
+                                                            if (s.spellIndex !== entry.spellIndex) return s
+                                                            const effects = [...(s.effects ?? [])]
+                                                            effects[idx] = {
+                                                              ...effects[idx],
+                                                              value,
+                                                              unit: target === 'speed' ? 'm' : effects[idx]?.unit,
+                                                            }
+                                                            return { ...s, effects }
+                                                          }),
+                                                        }))
+                                                      }}
+                                                      placeholder={needsValue ? 'ex: 2' : '—'}
+                                                    />
+                                                  </div>
+                                                )}
 
                                                 <div className="flex items-end justify-end">
                                                   <Button

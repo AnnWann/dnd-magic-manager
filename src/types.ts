@@ -17,6 +17,7 @@ export type SpellEffectTarget =
   | 'ability'
   | 'condition'
   | 'economy'
+  | 'conditionalDamage'
 
 export type SpellEffectMode = 'add' | 'sub' | 'set' | 'adv' | 'dis' | 'apply' | 'remove'
 
@@ -51,6 +52,11 @@ export interface SpellEffect {
   condition?: ConditionKey
   /** Optional: when target is economy (remove action economy options). */
   economy?: ActionEconomyKey
+
+  /** Optional: when target is conditionalDamage (free-text trigger). */
+  damageWhen?: string
+  /** Optional: when target is conditionalDamage (dice text like "2d6"). */
+  damageDice?: string
 }
 
 export interface HomebrewSpell {
