@@ -145,10 +145,8 @@ export function AddedSpellsCard(props: {
     { used: 0, limit: 0 },
   )
 
-  const [openUpcastSpellIndex, setOpenUpcastSpellIndex] = useState<string | null>(null)
   const [openMaterialSpellIndex, setOpenMaterialSpellIndex] = useState<string | null>(null)
   const [openDetailsSpellIndex, setOpenDetailsSpellIndex] = useState<string | null>(null)
-  const [openDamageInfoSpellIndex, setOpenDamageInfoSpellIndex] = useState<string | null>(null)
   const [openSourceInfoSpellIndex, setOpenSourceInfoSpellIndex] = useState<string | null>(null)
   const [openHomebrewEditSpellIndex, setOpenHomebrewEditSpellIndex] = useState<string | null>(null)
 
@@ -677,7 +675,7 @@ export function AddedSpellsCard(props: {
                       ? `Limite de preparadas atingido (${prepCount}/${prepLimit}).`
                       : `Preparadas: ${prepCount}/${prepLimit}`
 
-                  const isDamageInfoOpen = openDamageInfoSpellIndex === entry.spellIndex
+                  const isDetailsOpen = openDetailsSpellIndex === entry.spellIndex
                   const isSourceInfoOpen = openSourceInfoSpellIndex === entry.spellIndex
 
                   return (
@@ -797,7 +795,6 @@ export function AddedSpellsCard(props: {
                               variant="secondary"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                setOpenUpcastSpellIndex(null)
                                 setOpenMaterialSpellIndex(null)
                                 setOpenDetailsSpellIndex(entry.spellIndex)
                               }}
@@ -808,108 +805,51 @@ export function AddedSpellsCard(props: {
                           </div>
 
                           <div className="hidden md:block">
-                            <div
-                              className="cursor-pointer select-none"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setOpenDamageInfoSpellIndex((prev) =>
-                                  prev === entry.spellIndex ? null : entry.spellIndex,
-                                )
-                                setOpenUpcastSpellIndex(null)
-                              }}
-                              aria-expanded={isDamageInfoOpen}
-                              title={
-                                isDamageInfoOpen
-                                  ? 'Ocultar detalhes'
-                                  : 'Mostrar detalhes'
-                              }
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono">{damageEstimate}</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono">{damageEstimate}</span>
 
-                                {spellBaseLevel === 0 ? null : (
-                                  <Select
-                                    className="h-8 !w-[92px] shrink-0 px-2 text-xs"
-                                    value={effectiveSlot}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      const castSlotLevel = Number(e.target.value) as MagicCircleLevel
-                                      updateCharacter(activeCharacter.id, (c) => ({
-                                        ...c,
-                                        spells: c.spells.map((s) =>
-                                          s.spellIndex === entry.spellIndex
-                                            ? { ...s, castSlotLevel }
-                                            : s,
-                                        ),
-                                      }))
-                                    }}
-                                    title="Círculo usado (para dano/escala)"
-                                  >
-                                    {slotOptions.map((lvl) => (
-                                      <option key={lvl} value={lvl}>
-                                        Círc. {lvl}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                )}
+                              {spellBaseLevel === 0 ? null : (
+                                <Select
+                                  className="h-8 !w-[92px] shrink-0 px-2 text-xs"
+                                  value={effectiveSlot}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    const castSlotLevel = Number(e.target.value) as MagicCircleLevel
+                                    updateCharacter(activeCharacter.id, (c) => ({
+                                      ...c,
+                                      spells: c.spells.map((s) =>
+                                        s.spellIndex === entry.spellIndex
+                                          ? { ...s, castSlotLevel }
+                                          : s,
+                                      ),
+                                    }))
+                                  }}
+                                  title="Círculo usado (para dano/escala)"
+                                >
+                                  {slotOptions.map((lvl) => (
+                                    <option key={lvl} value={lvl}>
+                                      Círc. {lvl}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
 
-                                {(combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setOpenDamageInfoSpellIndex((prev) =>
-                                        prev === entry.spellIndex ? null : entry.spellIndex,
-                                      )
-                                      setOpenUpcastSpellIndex(null)
-                                    }}
-                                    title={isDamageInfoOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
-                                  >
-                                    {isDamageInfoOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
-                                  </Button>
-                                ) : null}
-                              </div>
+                              {combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel ? (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMaterialSpellIndex(null)
+                                    setOpenDetailsSpellIndex((prev) => (prev === entry.spellIndex ? null : entry.spellIndex))
+                                  }}
+                                  title={isDetailsOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+                                >
+                                  {isDetailsOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+                                </Button>
+                              ) : null}
                             </div>
-
-                            {isDamageInfoOpen && (combatBadgeNodes.length || infoBadgeNodes.length || upcastLabel) ? (
-                              <div className="relative mt-1">
-                                <div className="flex flex-col items-start gap-1.5">
-                                  {combatBadgeNodes}
-                                  {infoBadgeNodes}
-                                </div>
-
-                                {upcastLabel ? (
-                                  <div className="mt-1 flex">
-                                    <button
-                                      type="button"
-                                      className="inline-flex shrink-0 items-center rounded-md border border-accentBorder bg-accentBg px-2 py-1 text-xs leading-4 text-textH whitespace-nowrap hover:opacity-90"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setOpenUpcastSpellIndex((prev) =>
-                                          prev === entry.spellIndex ? null : entry.spellIndex,
-                                        )
-                                      }}
-                                      aria-expanded={openUpcastSpellIndex === entry.spellIndex}
-                                      aria-controls={`upcast-${entry.spellIndex}`}
-                                      title="Ver escala (níveis superiores)"
-                                    >
-                                      Ver escala
-                                    </button>
-                                  </div>
-                                ) : null}
-
-                                {upcastLabel && openUpcastSpellIndex === entry.spellIndex ? (
-                                  <div
-                                    id={`upcast-${entry.spellIndex}`}
-                                    className="absolute left-0 top-full z-10 mt-1 w-[min(520px,90vw)] rounded-md border border-border bg-bg p-2 text-xs text-text shadow-theme whitespace-normal break-words"
-                                  >
-                                    {upcastLabel}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
                           </div>
                         </td>
                         <td className="p-2 align-top">
@@ -1062,15 +1002,15 @@ export function AddedSpellsCard(props: {
                       </tr>
 
                       {openDetailsSpellIndex === entry.spellIndex ? (
-                        <tr className="md:hidden">
+                        <tr>
                           <td colSpan={10} className="p-0">
                             <div
-                              className="fixed inset-0 z-50 bg-black/40 p-4"
+                              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
                               onClick={() => setOpenDetailsSpellIndex(null)}
                               role="presentation"
                             >
                               <div
-                                className="mx-auto w-full max-w-[560px] rounded-xl border border-border bg-bg shadow-theme"
+                                className="w-full max-w-[560px] rounded-xl border border-border bg-bg bg-[color:color-mix(in_srgb,var(--bg)_96%,transparent)] backdrop-blur-sm shadow-theme"
                                 onClick={(e) => e.stopPropagation()}
                                 role="dialog"
                                 aria-modal="true"
@@ -1124,7 +1064,7 @@ export function AddedSpellsCard(props: {
                                   ) : null}
 
                                   {upcastLabel ? (
-                                    <div className="mt-3 rounded-lg border border-border bg-[color:var(--social-bg)] p-3 text-xs text-text whitespace-normal break-words">
+                                    <div className="mt-3 rounded-lg border border-border bg-codeBg p-3 text-xs text-text whitespace-normal break-words">
                                       <div className="text-[11px] font-semibold text-textH">Escala (níveis superiores)</div>
                                       <div className="mt-1">{upcastLabel}</div>
                                     </div>
