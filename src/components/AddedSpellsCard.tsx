@@ -1,4 +1,4 @@
-import { Fragment, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { Fragment, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import type {
   Ability,
   AddedSpell,
@@ -24,6 +24,7 @@ import { homebrewToDndSpell } from '../lib/homebrew'
 import { estimateSpellDamageDice, upcastRuleLabel } from '../lib/spellDamage'
 import { isAllowedSchoolForClass } from '../lib/spellAccess'
 import { spellMeta } from '../lib/spellMeta'
+import { multiclassSpellSlots } from '../lib/spellSlots'
 import { castTimeKindFromText, castTimeKindLabelPt, castTimeReactionWhenFromApi } from '../lib/castTime'
 import {
   apiClassLabel,
@@ -151,7 +152,21 @@ export function AddedSpellsCard(props: {
     { used: 0, limit: 0 },
   )
 
+  const slotMeta = useMemo(() => multiclassSpellSlots(activeCharacter.classes), [activeCharacter.classes])
+
+  const slotUsage = activeCharacter.slotUsage ?? { usedByLevel: undefined, pactUsed: 0 }
+  const usedByLevel = (() => {
+    const arr = Array.isArray(slotUsage.usedByLevel) ? [...slotUsage.usedByLevel] : []
+    while (arr.length < 10) arr.push(0)
+    return arr
+  })()
+  const pactUsed = typeof slotUsage.pactUsed === 'number' && Number.isFinite(slotUsage.pactUsed)
+    ? Math.max(0, Math.trunc(slotUsage.pactUsed))
+    : 0
+
   const [openMaterialSpellIndex, setOpenMaterialSpellIndex] = useState<string | null>(null)
+  const [editMaterialSpellIndex, setEditMaterialSpellIndex] = useState<string | null>(null)
+  const [editMaterialValue, setEditMaterialValue] = useState('')
   const [openDetailsSpellIndex, setOpenDetailsSpellIndex] = useState<string | null>(null)
   const [openSourceInfoSpellIndex, setOpenSourceInfoSpellIndex] = useState<string | null>(null)
   const [openHomebrewEditSpellIndex, setOpenHomebrewEditSpellIndex] = useState<string | null>(null)
@@ -402,6 +417,149 @@ export function AddedSpellsCard(props: {
                       <Input readOnly value={`${x.used}/${x.limit}`} />
                     </div>
                   ))}
+                </div>
+              </div>
+            ) : null}
+
+            {(slotMeta.spellcastingLevel > 0 || slotMeta.pact) ? (
+              <div className="mt-3">
+                <div className="text-xs font-semibold text-textH">Slots</div>
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  {slotMeta.spellcastingLevel > 0 ? (
+                    <div className="text-[11px] text-text">
+                      Nível conjurador (multiclasse): <span className="font-mono text-textH">{slotMeta.spellcastingLevel}</span>
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: 9 }, (_, i) => i + 1).map((lvl) => {
+                      const total = slotMeta.slotsByLevel[lvl] ?? 0
+                      if (!total) return null
+                      const used = Math.max(0, Math.trunc(usedByLevel[lvl] ?? 0))
+                      const remaining = Math.max(0, total - used)
+                      return (
+                        <div key={lvl} className="rounded-md border border-border bg-bg px-2 py-1">
+                          <div className="text-[11px] text-text">Círc. {lvl}</div>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-7 w-7 px-0"
+                              title="Gastar 1"
+                              disabled={remaining <= 0}
+                              onClick={() => {
+                                updateCharacter(activeCharacter.id, (c) => {
+                                  const prev = c.slotUsage ?? {}
+                                  const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
+                                  while (arr.length < 10) arr.push(0)
+                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0)) + 1
+                                  return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
+                                })
+                              }}
+                            >
+                              +
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-7 w-7 px-0"
+                              title="Recuperar 1"
+                              disabled={used <= 0}
+                              onClick={() => {
+                                updateCharacter(activeCharacter.id, (c) => {
+                                  const prev = c.slotUsage ?? {}
+                                  const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
+                                  while (arr.length < 10) arr.push(0)
+                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0) - 1)
+                                  return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
+                                })
+                              }}
+                            >
+                              −
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {slotMeta.pact ? (
+                      (() => {
+                        const total = slotMeta.pact.slots
+                        const used = pactUsed
+                        const remaining = Math.max(0, total - used)
+                        return (
+                          <div className="rounded-md border border-border bg-bg px-2 py-1">
+                            <div className="text-[11px] text-text">Pacto (círc. {slotMeta.pact.slotLevel})</div>
+                            <div className="mt-0.5 flex items-center gap-2">
+                              <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 w-7 px-0"
+                                title="Gastar 1 (curto)"
+                                disabled={remaining <= 0}
+                                onClick={() => {
+                                  updateCharacter(activeCharacter.id, (c) => {
+                                    const prev = c.slotUsage ?? {}
+                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number)) + 1
+                                    return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
+                                  })
+                                }}
+                              >
+                                +
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 w-7 px-0"
+                                title="Recuperar 1 (curto)"
+                                disabled={used <= 0}
+                                onClick={() => {
+                                  updateCharacter(activeCharacter.id, (c) => {
+                                    const prev = c.slotUsage ?? {}
+                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number) - 1)
+                                    return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
+                                  })
+                                }}
+                              >
+                                −
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 px-2"
+                                title="Reset (descanso curto)"
+                                onClick={() => {
+                                  updateCharacter(activeCharacter.id, (c) => {
+                                    const prev = c.slotUsage ?? {}
+                                    return { ...c, slotUsage: { ...prev, pactUsed: 0 } }
+                                  })
+                                }}
+                              >
+                                Curto
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })()
+                    ) : null}
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-9"
+                    title="Reset (descanso longo)"
+                    onClick={() => {
+                      updateCharacter(activeCharacter.id, (c) => {
+                        const prev = c.slotUsage ?? {}
+                        return { ...c, slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] } }
+                      })
+                    }}
+                  >
+                    Longo
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -792,7 +950,8 @@ export function AddedSpellsCard(props: {
                               if (!text) return <span className="text-xs text-text">—</span>
                               const hasMaterial = comps.includes('M') && typeof detail.material === 'string' && detail.material.trim()
                               const materialText =
-                                (spellTranslations[entry.spellIndex]?.materialPt?.trim() ||
+                                (entry.materialOverride?.trim() ||
+                                  spellTranslations[entry.spellIndex]?.materialPt?.trim() ||
                                   (typeof detail.material === 'string' ? detail.material.trim() : ''))
                               return (
                                 <div className="relative inline-block">
@@ -802,6 +961,7 @@ export function AddedSpellsCard(props: {
                                       className="inline-flex items-center rounded-md border border-accentBorder bg-accentBg px-1.5 py-0.5 text-[11px] leading-4 text-textH whitespace-nowrap hover:opacity-90"
                                       onClick={(e) => {
                                         e.stopPropagation()
+                                        setEditMaterialSpellIndex(null)
                                         setOpenMaterialSpellIndex((prev) =>
                                           prev === entry.spellIndex ? null : entry.spellIndex,
                                         )
@@ -819,9 +979,87 @@ export function AddedSpellsCard(props: {
                                   {hasMaterial && openMaterialSpellIndex === entry.spellIndex ? (
                                     <div
                                       id={`material-${entry.spellIndex}`}
-                                      className="absolute left-0 top-full z-10 mt-1 max-h-[240px] w-[min(520px,90vw)] overflow-auto rounded-md border border-border bg-bg bg-[color:color-mix(in_srgb,var(--bg)_96%,transparent)] p-2 text-xs text-text shadow-theme backdrop-blur-sm whitespace-normal break-words"
+                                      className="absolute left-0 top-full z-20 mt-1 w-[min(520px,90vw)] overflow-hidden rounded-md border border-border bg-bg bg-[color:color-mix(in_srgb,var(--bg)_85%,transparent)] text-xs text-text shadow-theme backdrop-blur-md"
                                     >
-                                      {materialText}
+                                      <div className="max-h-[240px] overflow-auto p-2 whitespace-normal break-words">
+                                        {materialText}
+                                      </div>
+
+                                      <div className="border-t border-border bg-bg bg-[color:color-mix(in_srgb,var(--bg)_92%,transparent)] p-2">
+                                        {editMaterialSpellIndex === entry.spellIndex ? (
+                                          <div className="space-y-2">
+                                            <Textarea
+                                              value={editMaterialValue}
+                                              onChange={(e) => setEditMaterialValue(e.target.value)}
+                                              placeholder="Edite o texto do componente material…"
+                                            />
+                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                              <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                  setEditMaterialSpellIndex(null)
+                                                  setEditMaterialValue('')
+                                                }}
+                                              >
+                                                Cancelar
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                  updateCharacter(activeCharacter.id, (c) => ({
+                                                    ...c,
+                                                    spells: c.spells.map((s) =>
+                                                      s.spellIndex === entry.spellIndex
+                                                        ? { ...s, materialOverride: undefined }
+                                                        : s,
+                                                    ),
+                                                  }))
+                                                  setEditMaterialSpellIndex(null)
+                                                  setEditMaterialValue('')
+                                                }}
+                                                title="Voltar ao texto padrão (tradução/API)"
+                                              >
+                                                Usar padrão
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="primary"
+                                                onClick={() => {
+                                                  const next = editMaterialValue.trim()
+                                                  updateCharacter(activeCharacter.id, (c) => ({
+                                                    ...c,
+                                                    spells: c.spells.map((s) =>
+                                                      s.spellIndex === entry.spellIndex
+                                                        ? { ...s, materialOverride: next ? next : undefined }
+                                                        : s,
+                                                    ),
+                                                  }))
+                                                  setEditMaterialSpellIndex(null)
+                                                  setEditMaterialValue('')
+                                                }}
+                                              >
+                                                Salvar
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center justify-end">
+                                            <Button
+                                              size="sm"
+                                              variant="secondary"
+                                              onClick={() => {
+                                                setEditMaterialSpellIndex(entry.spellIndex)
+                                                setEditMaterialValue(materialText)
+                                              }}
+                                              title="Editar este texto neste personagem"
+                                            >
+                                              Editar
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   ) : null}
                                 </div>

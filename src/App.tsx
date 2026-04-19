@@ -638,16 +638,18 @@ function App() {
       })()
 
       const isCantrip = (detail?.level ?? 1) === 0
+      const isRitual = Boolean((detail as DndSpell | undefined)?.ritual)
 
       // Filtering semantics:
       // - "prepared": show both explicitly prepared spells AND spells that don't require preparation (always available)
       // - "notPrepared": show only spells that use the prepared system and are not marked prepared
       if (addedPreparedFilter === 'prepared') {
-        if (usesPreparedSystem && !isCantrip && !entry.prepared) return false
+        if (usesPreparedSystem && !isCantrip && !isRitual && !entry.prepared) return false
       }
       if (addedPreparedFilter === 'notPrepared') {
         if (!usesPreparedSystem) return false
         if (isCantrip) return false
+        if (isRitual) return false
         if (entry.prepared) return false
       }
       return true
@@ -1463,7 +1465,7 @@ function App() {
                   {activeCharacter.classes.map((cls) => (
                     <div
                       key={cls.id}
-                      className="grid grid-cols-1 gap-2 rounded-md border border-border p-2 md:grid-cols-[1fr_100px_120px_44px]"
+                      className="grid grid-cols-1 gap-2 rounded-md border border-border p-2 md:grid-cols-[1fr_100px_160px_44px]"
                     >
                       <div className="min-w-0">
                         <div className="text-xs text-text">Classe</div>
@@ -1507,6 +1509,34 @@ function App() {
                             </option>
                           ))}
                         </Select>
+
+                        {cls.classIndex === 'fighter' || cls.classIndex === 'rogue' ? (
+                          <div className="mt-2">
+                            <div className="text-xs text-text">Slots (multiclasse)</div>
+                            <Select
+                              className="mt-1 h-9 px-2 py-1"
+                              value={cls.spellcastingProgression ?? 'auto'}
+                              onChange={(e) => {
+                                const v = e.target.value as 'auto' | 'third'
+                                updateCharacter(activeCharacter.id, (c) => ({
+                                  ...c,
+                                  classes: c.classes.map((x) =>
+                                    x.id === cls.id
+                                      ? {
+                                          ...x,
+                                          spellcastingProgression: v === 'auto' ? undefined : v,
+                                        }
+                                      : x,
+                                  ),
+                                }))
+                              }}
+                              title="Fighter/Rogue só contam como 1/3 conjurador se forem Cavaleiro Arcano / Trapaceiro Arcano."
+                            >
+                              <option value="auto">Padrão (sem slots)</option>
+                              <option value="third">1/3 conjurador (EK/AT)</option>
+                            </Select>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex items-end">
                         <Button

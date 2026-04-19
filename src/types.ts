@@ -131,6 +131,16 @@ export interface CharacterClass {
   className: string
   level: number
   castingAbility: Ability
+
+  /** Optional: override for multiclass spell slot progression (used for special cases like EK/AT). */
+  spellcastingProgression?: 'auto' | 'third'
+}
+
+export interface SpellSlotUsage {
+  /** Used slots by spell level. Index 1..9 are used; index 0 is ignored. */
+  usedByLevel?: number[]
+  /** Used Pact Magic slots (Warlock). */
+  pactUsed?: number
 }
 
 export interface AddedSpell {
@@ -173,6 +183,9 @@ export interface AddedSpell {
   hideAutoAttackBadges?: boolean
   hideAutoNumericBadges?: boolean
 
+  /** Optional: per-character override for the material components text shown in the V/S/M tooltip. */
+  materialOverride?: string
+
   /** Optional: cached translation of the official API description (PT-BR) */
   officialDescPt?: string[]
   officialHigherLevelPt?: string[]
@@ -188,6 +201,9 @@ export interface Character {
   classes: CharacterClass[]
   spells: AddedSpell[]
   proficiencyMode: ProficiencyMode
+
+  /** Optional: per-character tracker for spell slot usage. */
+  slotUsage?: SpellSlotUsage
 }
 
 export interface DndApiRef {

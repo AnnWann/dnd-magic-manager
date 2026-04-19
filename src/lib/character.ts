@@ -12,5 +12,6 @@ export function newCharacter(name = 'Novo personagem'): Character {
     classes: [],
     spells: [],
     proficiencyMode: 'totalLevel',
+    slotUsage: { usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], pactUsed: 0 },
   }
 }
