@@ -11,6 +11,7 @@ import type {
   SpellEffect,
   SpellEffectMode,
   SpellEffectTarget,
+  SpellTranslation,
 } from '../types'
 import {
   cantripDiceMultiplier,
@@ -97,7 +98,9 @@ export function AddedSpellsCard(props: {
   setOpenSpellTab: Dispatch<SetStateAction<'official' | 'modifiers' | 'headcanon'>>
 
   translateStatus: TranslateStatus
-  translateOfficialToPt: (args: { spellIndex: string; desc: string[]; higher: string[] }) => Promise<void>
+  translateOfficialToPt: (args: { spellIndex: string; desc: string[]; higher: string[]; material?: string }) => Promise<void>
+
+  spellTranslations: Record<string, SpellTranslation>
 
   updateCharacter: (characterId: string, updater: (c: Character) => Character) => void
   removeSpellFromActive: (spellIndex: string) => void
@@ -129,6 +132,7 @@ export function AddedSpellsCard(props: {
     setOpenSpellTab,
     translateStatus,
     translateOfficialToPt,
+    spellTranslations,
     updateCharacter,
     removeSpellFromActive,
   } = props
@@ -577,8 +581,15 @@ export function AddedSpellsCard(props: {
                     ? abilityShort(saveAbility)
                     : (detail?.dc?.dc_type?.name?.trim() || undefined)
 
-                  const usesSave = Boolean(saveTypeName) || descLower.includes('saving throw')
-                  const usesAttack = typeof detail?.attack_type === 'string' || descLower.includes('spell attack')
+                  const usesSaveRaw = Boolean(saveTypeName) || descLower.includes('saving throw')
+                  const usesAttackRaw = typeof detail?.attack_type === 'string' || descLower.includes('spell attack')
+
+                  const hideAutoSaveBadges = Boolean(entry.hideAutoSaveBadges)
+                  const hideAutoAttackBadges = Boolean(entry.hideAutoAttackBadges)
+                  const hideAutoNumericBadges = Boolean(entry.hideAutoNumericBadges)
+
+                  const usesSave = usesSaveRaw && !hideAutoSaveBadges
+                  const usesAttack = usesAttackRaw && !hideAutoAttackBadges
 
                   const displayName = entry.displayNamePt?.trim() || entry.spellName
                   const isOpen = openSpellIndex === entry.spellIndex
@@ -651,7 +662,9 @@ export function AddedSpellsCard(props: {
                     combatBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
                   }
                   const upcastLabel = upcastRuleLabel(detail)
-                  meta.numericMods.forEach((m) => combatBadgeNodes.push(badge(m, { kind: 'grid', title: m })))
+                  if (!hideAutoNumericBadges) {
+                    meta.numericMods.forEach((m) => combatBadgeNodes.push(badge(m, { kind: 'grid', title: m })))
+                  }
 
                   const infoBadgeNodes: ReactNode[] = []
                   if (castTimeKind) {
@@ -778,6 +791,9 @@ export function AddedSpellsCard(props: {
                               const text = ['V', 'S', 'M'].filter((c) => comps.includes(c)).join('')
                               if (!text) return <span className="text-xs text-text">—</span>
                               const hasMaterial = comps.includes('M') && typeof detail.material === 'string' && detail.material.trim()
+                              const materialText =
+                                (spellTranslations[entry.spellIndex]?.materialPt?.trim() ||
+                                  (typeof detail.material === 'string' ? detail.material.trim() : ''))
                               return (
                                 <div className="relative inline-block">
                                   {hasMaterial ? (
@@ -803,9 +819,9 @@ export function AddedSpellsCard(props: {
                                   {hasMaterial && openMaterialSpellIndex === entry.spellIndex ? (
                                     <div
                                       id={`material-${entry.spellIndex}`}
-                                      className="absolute left-0 top-full z-10 mt-1 w-[min(520px,90vw)] rounded-md border border-border bg-bg p-2 text-xs text-text shadow-theme whitespace-normal break-words"
+                                      className="absolute left-0 top-full z-10 mt-1 max-h-[240px] w-[min(520px,90vw)] overflow-auto rounded-md border border-border bg-bg bg-[color:color-mix(in_srgb,var(--bg)_96%,transparent)] p-2 text-xs text-text shadow-theme backdrop-blur-sm whitespace-normal break-words"
                                     >
-                                      {detail.material}
+                                      {materialText}
                                     </div>
                                   ) : null}
                                 </div>
@@ -1103,6 +1119,68 @@ export function AddedSpellsCard(props: {
                                       {infoBadgeNodes}
                                     </div>
                                   ) : null}
+
+                                  <div className="mt-3 rounded-lg border border-border bg-bg p-3">
+                                    <div className="text-[11px] font-semibold text-textH">Badges automáticos</div>
+                                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-text">
+                                      <label className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={!hideAutoSaveBadges}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked
+                                            updateCharacter(activeCharacter.id, (c) => ({
+                                              ...c,
+                                              spells: c.spells.map((s) =>
+                                                s.spellIndex === entry.spellIndex
+                                                  ? { ...s, hideAutoSaveBadges: checked ? undefined : true }
+                                                  : s,
+                                              ),
+                                            }))
+                                          }}
+                                        />
+                                        CD/TR
+                                      </label>
+
+                                      <label className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={!hideAutoAttackBadges}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked
+                                            updateCharacter(activeCharacter.id, (c) => ({
+                                              ...c,
+                                              spells: c.spells.map((s) =>
+                                                s.spellIndex === entry.spellIndex
+                                                  ? { ...s, hideAutoAttackBadges: checked ? undefined : true }
+                                                  : s,
+                                              ),
+                                            }))
+                                          }}
+                                        />
+                                        ATQ
+                                      </label>
+
+                                      <label className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={!hideAutoNumericBadges}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked
+                                            updateCharacter(activeCharacter.id, (c) => ({
+                                              ...c,
+                                              spells: c.spells.map((s) =>
+                                                s.spellIndex === entry.spellIndex
+                                                  ? { ...s, hideAutoNumericBadges: checked ? undefined : true }
+                                                  : s,
+                                              ),
+                                            }))
+                                          }}
+                                        />
+                                        Mods
+                                      </label>
+                                    </div>
+                                  </div>
 
                                   {upcastLabel ? (
                                     <div className="mt-3 rounded-lg border border-border bg-codeBg p-3 text-xs text-text whitespace-normal break-words">
@@ -1684,19 +1762,40 @@ export function AddedSpellsCard(props: {
                                                   disabled={
                                                     !detail ||
                                                     translateStatus.kind === 'loading' ||
-                                                    Boolean(entry.officialDescPt?.length)
+                                                    (Boolean(entry.officialDescPt?.length) &&
+                                                      !(
+                                                        (Array.isArray(detail.components)
+                                                          ? detail.components
+                                                          : []
+                                                        ).includes('M') &&
+                                                        typeof detail.material === 'string' &&
+                                                        detail.material.trim() &&
+                                                        !spellTranslations[entry.spellIndex]?.materialPt?.trim()
+                                                      ))
                                                   }
                                                   onClick={() => {
                                                     if (!detail) return
+                                                    const comps = Array.isArray(detail.components) ? detail.components : []
+                                                    const hasMaterial =
+                                                      comps.includes('M') && typeof detail.material === 'string' && detail.material.trim()
                                                     void translateOfficialToPt({
                                                       spellIndex: entry.spellIndex,
                                                       desc: detail.desc ?? [],
                                                       higher: detail.higher_level ?? [],
+                                                      material: hasMaterial ? detail.material : undefined,
                                                     })
                                                   }}
                                                   title={
                                                     entry.officialDescPt?.length
-                                                      ? 'Já traduzido'
+                                                      ? ((Array.isArray(detail?.components)
+                                                          ? detail.components
+                                                          : [])
+                                                          .includes('M') &&
+                                                          typeof detail?.material === 'string' &&
+                                                          detail.material.trim() &&
+                                                          !spellTranslations[entry.spellIndex]?.materialPt?.trim()
+                                                          ? 'Traduzir componente material para PT-BR'
+                                                          : 'Já traduzido')
                                                       : 'Traduzir descrição para PT-BR'
                                                   }
                                                 >

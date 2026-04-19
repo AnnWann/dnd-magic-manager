@@ -332,14 +332,20 @@ function App() {
     spellIndex: string
     desc: string[]
     higher: string[]
+    material?: string
   }): Promise<void> {
     if (!activeCharacter) return
     setTranslateStatus({ kind: 'loading', spellIndex: args.spellIndex })
     try {
-      const translated = await translateTexts({ texts: [...args.desc, ...args.higher] })
+      const material = args.material?.trim() || ''
+      const translated = await translateTexts({
+        texts: [...args.desc, ...args.higher, ...(material ? [material] : [])],
+      })
       const descCount = args.desc.length
+      const higherCount = args.higher.length
       const officialDescPt = translated.slice(0, descCount)
-      const officialHigherLevelPt = translated.slice(descCount)
+      const officialHigherLevelPt = translated.slice(descCount, descCount + higherCount)
+      const materialPt = material ? (translated[descCount + higherCount] ?? '').trim() : undefined
 
       setAppState((prev) => {
         const activeId = prev.activeCharacterId
@@ -349,6 +355,7 @@ function App() {
           namePt: prevT?.namePt,
           descPt: officialDescPt.length ? officialDescPt : undefined,
           higherPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
+          materialPt: materialPt || prevT?.materialPt,
         }
         const translationsChanged = JSON.stringify(prevT ?? {}) !== JSON.stringify(merged)
         const nextTranslations = translationsChanged
@@ -418,10 +425,13 @@ function App() {
 
       const desc = detail.desc ?? []
       const higher = detail.higher_level ?? []
-      const translated = await translateTexts({ texts: [...desc, ...higher] })
+      const material = detail.material?.trim() || ''
+      const translated = await translateTexts({ texts: [...desc, ...higher, ...(material ? [material] : [])] })
       const descCount = desc.length
+      const higherCount = higher.length
       const officialDescPt = translated.slice(0, descCount)
-      const officialHigherLevelPt = translated.slice(descCount)
+      const officialHigherLevelPt = translated.slice(descCount, descCount + higherCount)
+      const materialPt = material ? (translated[descCount + higherCount] ?? '').trim() : undefined
 
       const newSpell: AddedSpell = {
         spellIndex: detail.index,
@@ -451,6 +461,7 @@ function App() {
           namePt: prevT?.namePt,
           descPt: officialDescPt.length ? officialDescPt : undefined,
           higherPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
+          materialPt: materialPt || prevT?.materialPt,
         }
         const translationsChanged = JSON.stringify(prevT ?? {}) !== JSON.stringify(merged)
         const nextTranslations = translationsChanged
@@ -2048,6 +2059,7 @@ function App() {
             spellDetailsError={spellDetailsError}
             ensureSpellDetailsLoaded={ensureSpellDetailsLoaded}
             preparedMeta={preparedMeta}
+            spellTranslations={spellTranslations}
             addedNameFilter={addedNameFilter}
             setAddedNameFilter={setAddedNameFilter}
             addedLevelFilter={addedLevelFilter}

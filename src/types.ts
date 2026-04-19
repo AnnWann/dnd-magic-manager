@@ -168,6 +168,11 @@ export interface AddedSpell {
   /** Optional: whether this spell is currently prepared (when applicable) */
   prepared?: boolean
 
+  /** Optional: per-spell UI overrides to hide auto-generated badges/labels. */
+  hideAutoSaveBadges?: boolean
+  hideAutoAttackBadges?: boolean
+  hideAutoNumericBadges?: boolean
+
   /** Optional: cached translation of the official API description (PT-BR) */
   officialDescPt?: string[]
   officialHigherLevelPt?: string[]
@@ -230,6 +235,8 @@ export interface SpellTranslation {
   descPt?: string[]
   /** Optional Portuguese "At Higher Levels" for official spells. */
   higherPt?: string[]
+  /** Optional Portuguese translation for the material components text (5e API "material"). */
+  materialPt?: string
 }
 
 export interface SpellListResponse {
