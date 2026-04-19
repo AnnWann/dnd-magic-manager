@@ -15,6 +15,15 @@ export function homebrewToDndSpell(args: { entry: AddedSpell; hb: HomebrewSpell 
   const mechanic: HomebrewSpellMechanic = args.hb.mechanic ?? 'none'
   const saveAbility: Ability | undefined = args.hb.saveAbility
 
+  const componentsRaw = Array.isArray(args.hb.components) ? args.hb.components : []
+  const components = (['V', 'S', 'M'] as const).filter((c) => componentsRaw.includes(c))
+  const material = args.hb.material?.trim() ? args.hb.material.trim() : undefined
+  const componentsFinal = ((): string[] | undefined => {
+    const base = [...components]
+    if (material && !base.includes('M')) base.push('M')
+    return base.length ? base : undefined
+  })()
+
   const descParts: string[] = []
   if (args.hb.damageDice?.trim()) {
     descParts.push(`Dano: ${args.hb.damageDice.trim()}.`)
@@ -36,7 +45,9 @@ export function homebrewToDndSpell(args: { entry: AddedSpell; hb: HomebrewSpell 
     url: '',
     level: args.hb.level,
     school: { index: args.hb.school.toLowerCase(), name: args.hb.school, url: '' },
-    classes: [],
+    classes: (args.hb.classes ?? []).map((index) => ({ index, name: index, url: '' })),
+    components: componentsFinal,
+    material: componentsFinal?.includes('M') ? material : undefined,
     range: args.hb.range?.trim() ? args.hb.range.trim() : undefined,
     duration: args.hb.duration?.trim() ? args.hb.duration.trim() : undefined,
     concentration: args.hb.concentration ? true : undefined,

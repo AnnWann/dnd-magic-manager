@@ -409,9 +409,12 @@ export function AddedSpellsCard(props: {
                     ? homebrewToDndSpell({ entry, hb: entry.homebrew })
                     : spellDetails[entry.spellIndex]
                   const err = entry.homebrew ? undefined : spellDetailsError[entry.spellIndex]
-                  const apiClasses = entry.homebrew
-                    ? ['(homebrew)']
-                    : (detail?.classes?.map((c) => apiClassLabel(c)) ?? [])
+                  const apiClasses = (detail?.classes?.map((c) => apiClassLabel(c)) ?? [])
+                  const apiClassesFinal = apiClasses.length
+                    ? apiClasses
+                    : entry.homebrew
+                      ? ['(homebrew)']
+                      : []
                   const sourceType = entry.sourceType ?? 'class'
                   const castAs =
                     sourceType === 'feat'
@@ -944,7 +947,7 @@ export function AddedSpellsCard(props: {
                           ) : null}
                         </td>
                         <td className="p-2 align-top text-text break-words">
-                          {apiClasses.length ? apiClasses.join(', ') : detail ? '(none)' : '…'}
+                          {apiClassesFinal.length ? apiClassesFinal.join(', ') : detail ? '(none)' : '…'}
                         </td>
                         <td className="p-2 align-top">
                           <Button
@@ -1310,6 +1313,75 @@ export function AddedSpellsCard(props: {
                                               />
                                               <span className="text-xs text-text">Exige concentração</span>
                                             </div>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-xs text-text">Componentes</label>
+                                            <div className="mt-2 flex flex-wrap items-center gap-3">
+                                              {(['V', 'S', 'M'] as const).map((comp) => {
+                                                const checked = Boolean(entry.homebrew!.components?.includes(comp))
+                                                return (
+                                                  <label key={comp} className="flex items-center gap-2 text-xs text-text">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={checked}
+                                                      onChange={(e) => {
+                                                        const nextChecked = e.target.checked
+                                                        const prev = Array.isArray(entry.homebrew!.components)
+                                                          ? entry.homebrew!.components
+                                                          : []
+                                                        const set = new Set(prev)
+                                                        if (nextChecked) set.add(comp)
+                                                        else set.delete(comp)
+                                                        const components = Array.from(set) as Array<'V' | 'S' | 'M'>
+                                                        const material =
+                                                          comp === 'M' && !nextChecked
+                                                            ? undefined
+                                                            : entry.homebrew!.material
+
+                                                        updateCharacter(activeCharacter.id, (c) => ({
+                                                          ...c,
+                                                          spells: c.spells.map((s) =>
+                                                            s.spellIndex === entry.spellIndex
+                                                              ? {
+                                                                  ...s,
+                                                                  homebrew: {
+                                                                    ...s.homebrew!,
+                                                                    components: components.length ? components : undefined,
+                                                                    material: material?.trim() ? material : undefined,
+                                                                  },
+                                                                }
+                                                              : s,
+                                                          ),
+                                                        }))
+                                                      }}
+                                                    />
+                                                    <span>{comp}</span>
+                                                  </label>
+                                                )
+                                              })}
+                                            </div>
+
+                                            {entry.homebrew!.components?.includes('M') ? (
+                                              <div className="mt-2">
+                                                <Input
+                                                  className="mt-1"
+                                                  value={entry.homebrew!.material ?? ''}
+                                                  onChange={(e) => {
+                                                    const material = e.target.value || undefined
+                                                    updateCharacter(activeCharacter.id, (c) => ({
+                                                      ...c,
+                                                      spells: c.spells.map((s) =>
+                                                        s.spellIndex === entry.spellIndex
+                                                          ? { ...s, homebrew: { ...s.homebrew!, material } }
+                                                          : s,
+                                                      ),
+                                                    }))
+                                                  }}
+                                                  placeholder="Material (ex: um pedaço de fio de cobre…)"
+                                                />
+                                              </div>
+                                            ) : null}
                                           </div>
 
                                           <div>

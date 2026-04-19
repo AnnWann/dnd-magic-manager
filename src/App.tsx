@@ -32,6 +32,7 @@ import {
   SCHOOL_NAME_PT,
   classDisplayName,
   classLabel,
+  apiClassLabel,
   schoolLabel,
 } from './lib/spellLabels'
 import { useRemoteAppState } from './lib/remoteState'
@@ -105,22 +106,39 @@ function App() {
   const [hbName, setHbName] = useState('')
   const [hbLevel, setHbLevel] = useState<MagicCircleLevel>(1)
   const [hbSchool, setHbSchool] = useState<string>('Evocation')
-  const [hbDamageDice, setHbDamageDice] = useState('')
   const [hbMechanic, setHbMechanic] = useState<HomebrewSpellMechanic>('none')
   const [hbSaveAbility, setHbSaveAbility] = useState<Ability>('dex')
   const [hbDesc, setHbDesc] = useState('')
   const [hbHigher, setHbHigher] = useState('')
 
-  const [hbRange, setHbRange] = useState('')
-  const [hbArea, setHbArea] = useState('')
-  const [hbDuration, setHbDuration] = useState('')
+  const [hbRangeKind, setHbRangeKind] = useState<'self' | 'touch' | 'meters' | 'feet' | 'sight' | 'special' | 'unlimited'>('meters')
+  const [hbRangeValue, setHbRangeValue] = useState<number>(18)
+
+  const [hbAreaShape, setHbAreaShape] = useState<'none' | 'cone' | 'sphere' | 'cylinder' | 'line' | 'cube'>('none')
+  const [hbAreaSize, setHbAreaSize] = useState<number>(6)
+  const [hbAreaUnit, setHbAreaUnit] = useState<'m' | 'ft'>('m')
+
+  const [hbDurationKind, setHbDurationKind] = useState<'instant' | 'rounds' | 'minutes' | 'hours' | 'special'>('instant')
+  const [hbDurationValue, setHbDurationValue] = useState<number>(1)
+
+  const [hbDamageKind, setHbDamageKind] = useState<'none' | 'dice'>('none')
+  const [hbDamageCount, setHbDamageCount] = useState<number>(2)
+  const [hbDamageDie, setHbDamageDie] = useState<4 | 6 | 8 | 10 | 12>(6)
+  const [hbDamageBonus, setHbDamageBonus] = useState<number>(0)
+
   const [hbCastTimeKind, setHbCastTimeKind] = useState<SpellCastTimeKind>('action')
+  const [hbReactionWhen, setHbReactionWhen] = useState('')
   const [hbConcentration, setHbConcentration] = useState(false)
+
+  const [hbComponents, setHbComponents] = useState<Array<'V' | 'S' | 'M'>>([])
+  const [hbMaterial, setHbMaterial] = useState('')
 
   const [hbSourceType, setHbSourceType] = useState<'class' | 'feat'>('class')
   const [hbSourceClassId, setHbSourceClassId] = useState<string>('')
   const [hbFeatName, setHbFeatName] = useState('')
   const [hbFeatAbility, setHbFeatAbility] = useState<Ability>('cha')
+
+  const [hbBaseClasses, setHbBaseClasses] = useState<string[]>([])
 
   const [openSpellIndex, setOpenSpellIndex] = useState<string | null>(null)
   const [openSpellTab, setOpenSpellTab] = useState<'official' | 'modifiers' | 'headcanon'>('official')
@@ -532,15 +550,65 @@ function App() {
     const name = hbName.trim()
     if (!name) return
 
+    const range = (() => {
+      if (hbRangeKind === 'self') return 'Pessoal'
+      if (hbRangeKind === 'touch') return 'Toque'
+      if (hbRangeKind === 'special') return 'Especial'
+      if (hbRangeKind === 'sight') return 'Visão'
+      if (hbRangeKind === 'unlimited') return 'Ilimitado'
+      const n = clampInt(hbRangeValue, 1, 9999)
+      if (hbRangeKind === 'feet') return `${n} ft`
+      return `${n} m`
+    })()
+
+    const area = (() => {
+      if (hbAreaShape === 'none') return undefined
+      const n = clampInt(hbAreaSize, 1, 9999)
+      const unit = hbAreaUnit
+      const shapePt: Record<Exclude<typeof hbAreaShape, 'none'>, string> = {
+        cone: 'Cone',
+        sphere: 'Esfera',
+        cylinder: 'Cilindro',
+        line: 'Linha',
+        cube: 'Cubo',
+      }
+      return `${shapePt[hbAreaShape]} ${n} ${unit}`
+    })()
+
+    const duration = (() => {
+      if (hbDurationKind === 'instant') return 'Instantânea'
+      if (hbDurationKind === 'special') return 'Especial'
+      const n = clampInt(hbDurationValue, 1, 9999)
+      if (hbDurationKind === 'rounds') return `${n} ${n === 1 ? 'rodada' : 'rodadas'}`
+      if (hbDurationKind === 'minutes') return `${n} ${n === 1 ? 'minuto' : 'minutos'}`
+      return `${n} ${n === 1 ? 'hora' : 'horas'}`
+    })()
+
+    const damageDice = (() => {
+      if (hbDamageKind === 'none') return undefined
+      const count = clampInt(hbDamageCount, 1, 99)
+      const size = hbDamageDie
+      const bonus = clampInt(hbDamageBonus, 0, 999)
+      return `${count}d${size}${bonus ? `+${bonus}` : ''}`
+    })()
+
+    const componentsSet = new Set(hbComponents)
+    const materialTrimmed = hbMaterial.trim()
+    if (materialTrimmed) componentsSet.add('M')
+    const components = Array.from(componentsSet) as Array<'V' | 'S' | 'M'>
+
     const hb: HomebrewSpell = {
       name,
       level: hbLevel,
       school: hbSchool,
-      range: hbRange.trim() || undefined,
-      area: hbArea.trim() || undefined,
-      duration: hbDuration.trim() || undefined,
+      classes: hbBaseClasses.length ? hbBaseClasses : undefined,
+      components: components.length ? components : undefined,
+      material: components.includes('M') ? (materialTrimmed || undefined) : undefined,
+      range: range.trim() || undefined,
+      area: area?.trim() || undefined,
+      duration: duration.trim() || undefined,
       concentration: hbConcentration || undefined,
-      damageDice: hbDamageDice.trim() || undefined,
+      damageDice,
       mechanic: hbMechanic,
       saveAbility: hbMechanic === 'save' || hbMechanic === 'both' ? hbSaveAbility : undefined,
       desc: hbDesc.trim() || undefined,
@@ -561,6 +629,8 @@ function App() {
       addedAt: Date.now(),
       castSlotLevel: hbLevel,
       castTimeKind: hbCastTimeKind,
+      reactionWhen:
+        hbCastTimeKind === 'reaction' ? (hbReactionWhen.trim() || undefined) : undefined,
     }
 
     updateCharacter(activeCharacter.id, (c) => ({
@@ -580,14 +650,27 @@ function App() {
     }))
 
     setHbName('')
-    setHbDamageDice('')
     setHbDesc('')
     setHbHigher('')
-    setHbRange('')
-    setHbArea('')
-    setHbDuration('')
+    setHbRangeKind('meters')
+    setHbRangeValue(18)
+    setHbAreaShape('none')
+    setHbAreaSize(6)
+    setHbAreaUnit('m')
+    setHbDurationKind('instant')
+    setHbDurationValue(1)
+    setHbDamageKind('none')
+    setHbDamageCount(2)
+    setHbDamageDie(6)
+    setHbDamageBonus(0)
     setHbCastTimeKind('action')
+    setHbReactionWhen('')
     setHbConcentration(false)
+
+    setHbBaseClasses([])
+
+    setHbComponents([])
+    setHbMaterial('')
   }
 
   function removeSpellFromActive(spellIndex: string) {
@@ -1031,45 +1114,121 @@ function App() {
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     <div>
                       <label className="text-xs text-text">Alcance</label>
-                      <Input
-                        className="mt-1"
-                        value={hbRange}
-                        onChange={(e) => setHbRange(e.target.value)}
-                        placeholder="ex: 18 m / Toque / Pessoal"
-                      />
+                      <div className="mt-1 grid grid-cols-1 gap-2 md:grid-cols-[1fr_120px]">
+                        <Select
+                          value={hbRangeKind}
+                          onChange={(e) => setHbRangeKind(e.target.value as typeof hbRangeKind)}
+                        >
+                          <option value="self">Pessoal</option>
+                          <option value="touch">Toque</option>
+                          <option value="meters">Distância (m)</option>
+                          <option value="feet">Distância (ft)</option>
+                          <option value="sight">Visão</option>
+                          <option value="special">Especial</option>
+                          <option value="unlimited">Ilimitado</option>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={hbRangeKind === 'meters' || hbRangeKind === 'feet' ? hbRangeValue : ''}
+                          disabled={!(hbRangeKind === 'meters' || hbRangeKind === 'feet')}
+                          onChange={(e) => setHbRangeValue(Number(e.target.value))}
+                          min={1}
+                          max={9999}
+                          placeholder="ex: 18"
+                          title="Valor do alcance (quando aplicável)"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs text-text">Área</label>
-                      <Input
-                        className="mt-1"
-                        value={hbArea}
-                        onChange={(e) => setHbArea(e.target.value)}
-                        placeholder="ex: cone 15ft / esfera 6m"
-                      />
+                      <div className="mt-1 grid grid-cols-1 gap-2 md:grid-cols-[1fr_120px_84px]">
+                        <Select
+                          value={hbAreaShape}
+                          onChange={(e) => setHbAreaShape(e.target.value as typeof hbAreaShape)}
+                        >
+                          <option value="none">(sem área)</option>
+                          <option value="cone">Cone</option>
+                          <option value="sphere">Esfera</option>
+                          <option value="cylinder">Cilindro</option>
+                          <option value="line">Linha</option>
+                          <option value="cube">Cubo</option>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={hbAreaShape === 'none' ? '' : hbAreaSize}
+                          disabled={hbAreaShape === 'none'}
+                          onChange={(e) => setHbAreaSize(Number(e.target.value))}
+                          min={1}
+                          max={9999}
+                          placeholder="ex: 6"
+                          title="Tamanho da área (quando aplicável)"
+                        />
+                        <Select
+                          value={hbAreaUnit}
+                          onChange={(e) => setHbAreaUnit(e.target.value as typeof hbAreaUnit)}
+                          disabled={hbAreaShape === 'none'}
+                          title="Unidade"
+                        >
+                          <option value="m">m</option>
+                          <option value="ft">ft</option>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                     <div>
                       <label className="text-xs text-text">Duração</label>
-                      <Input
-                        className="mt-1"
-                        value={hbDuration}
-                        onChange={(e) => setHbDuration(e.target.value)}
-                        placeholder="ex: 1 minuto / 10 minutos / 1 hora"
-                      />
+                      <div className="mt-1 grid grid-cols-1 gap-2 md:grid-cols-[1fr_120px]">
+                        <Select
+                          value={hbDurationKind}
+                          onChange={(e) => setHbDurationKind(e.target.value as typeof hbDurationKind)}
+                        >
+                          <option value="instant">Instantânea</option>
+                          <option value="rounds">Rodadas</option>
+                          <option value="minutes">Minutos</option>
+                          <option value="hours">Horas</option>
+                          <option value="special">Especial</option>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={hbDurationKind === 'rounds' || hbDurationKind === 'minutes' || hbDurationKind === 'hours' ? hbDurationValue : ''}
+                          disabled={!(hbDurationKind === 'rounds' || hbDurationKind === 'minutes' || hbDurationKind === 'hours')}
+                          onChange={(e) => setHbDurationValue(Number(e.target.value))}
+                          min={1}
+                          max={9999}
+                          placeholder="ex: 1"
+                          title="Valor da duração (quando aplicável)"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs text-text">Conjuração</label>
                       <Select
                         className="mt-1"
                         value={hbCastTimeKind}
-                        onChange={(e) => setHbCastTimeKind(e.target.value as SpellCastTimeKind)}
+                        onChange={(e) => {
+                          const next = e.target.value as SpellCastTimeKind
+                          setHbCastTimeKind(next)
+                          if (next !== 'reaction') setHbReactionWhen('')
+                        }}
                       >
                         <option value="action">Ação</option>
                         <option value="bonus">Bônus</option>
                         <option value="reaction">Reação</option>
                       </Select>
+
+                      {hbCastTimeKind === 'reaction' ? (
+                        <div className="mt-2">
+                          <div className="text-xs text-text">Quando (reação)</div>
+                          <Input
+                            className="mt-1"
+                            value={hbReactionWhen}
+                            onChange={(e) => setHbReactionWhen(e.target.value)}
+                            placeholder="ex: quando você for atingido por um ataque…"
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <div>
                       <label className="text-xs text-text">Concentração</label>
@@ -1084,16 +1243,92 @@ function App() {
                     </div>
                   </div>
 
+                  <div>
+                    <label className="text-xs text-text">Componentes</label>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      {(['V', 'S', 'M'] as const).map((comp) => {
+                        const checked = hbComponents.includes(comp)
+                        return (
+                          <label key={comp} className="flex items-center gap-2 text-xs text-text">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const nextChecked = e.target.checked
+                                const set = new Set(hbComponents)
+                                if (nextChecked) set.add(comp)
+                                else set.delete(comp)
+                                const next = Array.from(set) as Array<'V' | 'S' | 'M'>
+                                setHbComponents(next)
+                                if (comp === 'M' && !nextChecked) setHbMaterial('')
+                              }}
+                            />
+                            <span>{comp}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+
+                    {hbComponents.includes('M') ? (
+                      <div className="mt-2">
+                        <Input
+                          className="mt-1"
+                          value={hbMaterial}
+                          onChange={(e) => setHbMaterial(e.target.value)}
+                          placeholder="Material (ex: um pedaço de fio de cobre…)"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     <div>
                       <label className="text-xs text-text">Dano (base)</label>
-                      <Input
-                        className="mt-1"
-                        value={hbDamageDice}
-                        onChange={(e) => setHbDamageDice(e.target.value)}
-                        placeholder="ex: 2d6"
-                        title="Opcional. Usado só para o cálculo de dano estimado."
-                      />
+                      <div className="mt-1 grid grid-cols-1 gap-2 md:grid-cols-[1fr_88px_88px_88px]">
+                        <Select
+                          value={hbDamageKind}
+                          onChange={(e) => setHbDamageKind(e.target.value as typeof hbDamageKind)}
+                          title="Tipo de dano base"
+                        >
+                          <option value="none">(sem dano)</option>
+                          <option value="dice">Dados</option>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={hbDamageKind === 'dice' ? hbDamageCount : ''}
+                          disabled={hbDamageKind !== 'dice'}
+                          onChange={(e) => setHbDamageCount(Number(e.target.value))}
+                          min={1}
+                          max={99}
+                          placeholder="Qtd"
+                          title="Quantidade de dados"
+                        />
+                        <Select
+                          value={String(hbDamageDie)}
+                          disabled={hbDamageKind !== 'dice'}
+                          onChange={(e) => setHbDamageDie(Number(e.target.value) as 4 | 6 | 8 | 10 | 12)}
+                          title="Tamanho do dado"
+                        >
+                          <option value="4">d4</option>
+                          <option value="6">d6</option>
+                          <option value="8">d8</option>
+                          <option value="10">d10</option>
+                          <option value="12">d12</option>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={hbDamageKind === 'dice' ? hbDamageBonus : ''}
+                          disabled={hbDamageKind !== 'dice'}
+                          onChange={(e) => setHbDamageBonus(Number(e.target.value))}
+                          min={0}
+                          max={999}
+                          placeholder="+0"
+                          title="Bônus fixo (opcional)"
+                        />
+                      </div>
+                      <div className="mt-1 text-[11px] text-text">
+                        Usado só para estimativa de dano (ex.: 2d6+3).
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs text-text">Mecânica</label>
@@ -1137,6 +1372,51 @@ function App() {
                       <option value="class">Classe</option>
                       <option value="feat">Feat</option>
                     </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-text">Classes base</label>
+                    <div className="mt-1 text-[11px] text-text">
+                      Define quais classes têm essa magia na lista (coluna “Classes”).
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      {(
+                        [
+                          'artificer',
+                          'barbarian',
+                          'bard',
+                          'cleric',
+                          'druid',
+                          'fighter',
+                          'monk',
+                          'paladin',
+                          'ranger',
+                          'rogue',
+                          'sorcerer',
+                          'warlock',
+                          'wizard',
+                        ] as const
+                      ).map((idx) => {
+                        const checked = hbBaseClasses.includes(idx)
+                        const label = apiClassLabel({ index: idx, name: idx, url: '' })
+                        return (
+                          <label key={idx} className="flex items-center gap-2 text-xs text-text">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const nextChecked = e.target.checked
+                                const set = new Set(hbBaseClasses)
+                                if (nextChecked) set.add(idx)
+                                else set.delete(idx)
+                                setHbBaseClasses(Array.from(set).sort())
+                              }}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
                   </div>
 
                   {hbSourceType === 'class' ? (

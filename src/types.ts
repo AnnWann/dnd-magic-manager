@@ -59,6 +59,14 @@ export interface HomebrewSpell {
   /** Use DnD school canonical names (e.g. "Evocation") */
   school: string
 
+  /** Optional: base classes that have access to this spell (API class indexes, e.g. 'wizard'). */
+  classes?: string[]
+
+  /** Optional: spell components (V/S/M). */
+  components?: Array<'V' | 'S' | 'M'>
+  /** Optional: material component text (when components includes 'M'). */
+  material?: string
+
   /** Optional: display/meta */
   range?: string
   /** Free-text area (e.g. "cone 15 ft", "esfera 6m", "self (15-foot cone)") */
