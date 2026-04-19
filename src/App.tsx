@@ -56,6 +56,21 @@ function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.trunc(value)))
 }
 
+function clampStep(value: number, min: number, max: number, step: number): number {
+  const v = Number.isFinite(value) ? value : min
+  const clamped = Math.max(min, Math.min(max, v))
+  const snapped = Math.round(clamped / step) * step
+  // Keep one decimal for 1.5m increments (e.g. 4.5), avoid float artifacts.
+  return Math.round(snapped * 10) / 10
+}
+
+function formatPtNumber(n: number): string {
+  const rounded = Math.round(n * 10) / 10
+  const isInt = Math.abs(rounded - Math.round(rounded)) < 1e-9
+  const s = isInt ? String(Math.round(rounded)) : String(rounded)
+  return s.replace('.', ',')
+}
+
 function App() {
   const { abilityShort } = useI18n()
 
@@ -556,15 +571,21 @@ function App() {
       if (hbRangeKind === 'special') return 'Especial'
       if (hbRangeKind === 'sight') return 'Visão'
       if (hbRangeKind === 'unlimited') return 'Ilimitado'
-      const n = clampInt(hbRangeValue, 1, 9999)
-      if (hbRangeKind === 'feet') return `${n} ft`
-      return `${n} m`
+      if (hbRangeKind === 'feet') {
+        const n = clampStep(hbRangeValue, 5, 9999, 5)
+        return `${formatPtNumber(n)} ft`
+      }
+      const n = clampStep(hbRangeValue, 1.5, 9999, 1.5)
+      return `${formatPtNumber(n)} m`
     })()
 
     const area = (() => {
       if (hbAreaShape === 'none') return undefined
-      const n = clampInt(hbAreaSize, 1, 9999)
       const unit = hbAreaUnit
+      const n =
+        unit === 'ft'
+          ? clampStep(hbAreaSize, 5, 9999, 5)
+          : clampStep(hbAreaSize, 1.5, 9999, 1.5)
       const shapePt: Record<Exclude<typeof hbAreaShape, 'none'>, string> = {
         cone: 'Cone',
         sphere: 'Esfera',
@@ -572,7 +593,7 @@ function App() {
         line: 'Linha',
         cube: 'Cubo',
       }
-      return `${shapePt[hbAreaShape]} ${n} ${unit}`
+      return `${shapePt[hbAreaShape]} ${formatPtNumber(n)} ${unit}`
     })()
 
     const duration = (() => {
@@ -1131,9 +1152,13 @@ function App() {
                           type="number"
                           value={hbRangeKind === 'meters' || hbRangeKind === 'feet' ? hbRangeValue : ''}
                           disabled={!(hbRangeKind === 'meters' || hbRangeKind === 'feet')}
-                          onChange={(e) => setHbRangeValue(Number(e.target.value))}
-                          min={1}
+                          onChange={(e) => {
+                            const v = Number(e.target.value)
+                            if (Number.isFinite(v)) setHbRangeValue(v)
+                          }}
+                          min={hbRangeKind === 'feet' ? 5 : 1.5}
                           max={9999}
+                          step={hbRangeKind === 'feet' ? 5 : 1.5}
                           placeholder="ex: 18"
                           title="Valor do alcance (quando aplicável)"
                         />
@@ -1157,9 +1182,13 @@ function App() {
                           type="number"
                           value={hbAreaShape === 'none' ? '' : hbAreaSize}
                           disabled={hbAreaShape === 'none'}
-                          onChange={(e) => setHbAreaSize(Number(e.target.value))}
-                          min={1}
+                          onChange={(e) => {
+                            const v = Number(e.target.value)
+                            if (Number.isFinite(v)) setHbAreaSize(v)
+                          }}
+                          min={hbAreaUnit === 'ft' ? 5 : 1.5}
                           max={9999}
+                          step={hbAreaUnit === 'ft' ? 5 : 1.5}
                           placeholder="ex: 6"
                           title="Tamanho da área (quando aplicável)"
                         />
