@@ -189,6 +189,14 @@ export function AddedSpellsCard(props: {
   const sorceryPointsUsedClamped = sorceryPointsMax > 0 ? Math.min(sorceryPointsUsed, sorceryPointsMax) : 0
   const sorceryPointsRemaining = sorceryPointsMax > 0 ? Math.max(0, sorceryPointsMax - sorceryPointsUsedClamped) : 0
 
+  function isUaName(name: string) {
+    return name.toLowerCase().includes('(ua)')
+  }
+
+  function isUaSpellEntry(s: AddedSpell) {
+    return isUaName(s.displayNamePt?.trim() || s.spellName)
+  }
+
   const [metamagicOptions, setMetamagicOptions] = useState<MetamagicOption[] | null>(null)
   const [metamagicError, setMetamagicError] = useState<string | null>(null)
   const [addMetamagicId, setAddMetamagicId] = useState<string>('')
@@ -257,6 +265,11 @@ export function AddedSpellsCard(props: {
     return (metamagicOptions ?? []).filter((m) => !selected.has(m.id))
   }, [metamagicOptions, selectedMetamagicIds])
 
+  const addMetamagic = addMetamagicId ? metamagicById[addMetamagicId] : undefined
+  const addMetamagicDesc = (addMetamagic?.descPt ?? [])
+    .filter((x) => typeof x === 'string' && x.trim())
+    .map((x) => x.trim())
+
   useEffect(() => {
     if (sorceryPointsMax <= 0) return
     const candidates = metamagicAddCandidates
@@ -264,9 +277,6 @@ export function AddedSpellsCard(props: {
     if (addMetamagicId && candidates.some((c) => c.id === addMetamagicId)) return
     setAddMetamagicId(candidates[0].id)
   }, [addMetamagicId, metamagicAddCandidates, sorceryPointsMax])
-
-  const isUaName = (name: string) => name.toLowerCase().includes('(ua)')
-  const isUaSpellEntry = (s: AddedSpell) => isUaName(s.displayNamePt?.trim() || s.spellName)
 
   const spellsForLists = useMemo(
     () => (hideUa ? activeCharacter.spells.filter((s) => !isUaSpellEntry(s)) : activeCharacter.spells),
@@ -861,12 +871,20 @@ export function AddedSpellsCard(props: {
                         </div>
                       </div>
 
+                      {addMetamagicDesc.length ? (
+                        <div className="mt-2 space-y-1 text-xs text-text whitespace-normal break-words">
+                          {addMetamagicDesc.map((p, i) => (
+                            <div key={`${addMetamagicId}-preview-${i}`}>{p}</div>
+                          ))}
+                        </div>
+                      ) : null}
+
                       {visibleSelectedMetamagicIds.length ? (
                         <div className="mt-2 space-y-2">
                           {visibleSelectedMetamagicIds.map((id) => {
                             const m = metamagicById[id]
                             const name = m ? metamagicDisplayName(m) : id
-                            const desc = m?.descPt?.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()) ?? []
+                            const desc = (m?.descPt ?? []).filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim())
                             return (
                               <div key={id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
                                 <div className="min-w-0 flex-1">
