@@ -6,7 +6,6 @@ import type {
   Character,
   ConditionKey,
   DndSpell,
-  HomebrewSpellMechanic,
   MagicCircleLevel,
   SpellEffect,
   SpellEffectMode,
@@ -24,7 +23,6 @@ import { isAllowedSchoolForClass } from '../lib/spellAccess'
 import { spellMeta } from '../lib/spellMeta'
 import { castTimeKindFromText, castTimeKindLabelPt, castTimeReactionWhenFromApi } from '../lib/castTime'
 import {
-  SCHOOL_NAME_PT,
   apiClassLabel,
   classDisplayName,
   classLabel,
@@ -1145,366 +1143,106 @@ export function AddedSpellsCard(props: {
                                       <div>
                                         <div className="text-xs font-semibold text-textH">Homebrew</div>
                                         <div className="mt-1 text-xs text-text">
-                                          Edita os dados da magia homebrew (salvo no personagem/sync).
+                                          Somente visualização (edite no criador de homebrew).
                                         </div>
 
-                                        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                        <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-border bg-bg p-3 md:grid-cols-2">
                                           <div>
-                                            <label className="text-xs text-text">Nome</label>
-                                            <Input
-                                              className="mt-1"
-                                              value={entry.homebrew.name}
-                                              onChange={(e) => {
-                                                const name = e.target.value
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? {
-                                                          ...s,
-                                                          spellName: name,
-                                                          homebrew: { ...s.homebrew!, name },
-                                                        }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                            />
-                                          </div>
-
-                                          <div>
-                                            <label className="text-xs text-text">Nível</label>
-                                            <Select
-                                              className="mt-1"
-                                              value={entry.homebrew.level}
-                                              onChange={(e) => {
-                                                const level = Number(e.target.value) as MagicCircleLevel
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? {
-                                                          ...s,
-                                                          castSlotLevel: level,
-                                                          homebrew: { ...s.homebrew!, level },
-                                                        }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                            >
-                                              {magicCircleOptions().map((lvl) => (
-                                                <option key={lvl} value={lvl}>
-                                                  {lvl}
-                                                </option>
-                                              ))}
-                                            </Select>
-                                          </div>
-
-                                          <div>
-                                            <label className="text-xs text-text">Escola</label>
-                                            <Select
-                                              className="mt-1"
-                                              value={entry.homebrew.school}
-                                              onChange={(e) => {
-                                                const school = e.target.value
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? { ...s, homebrew: { ...s.homebrew!, school } }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                            >
-                                              {Object.keys(SCHOOL_NAME_PT)
-                                                .sort((a, b) =>
-                                                  schoolLabel(a).localeCompare(schoolLabel(b), 'pt-BR'),
-                                                )
-                                                .map((k) => (
-                                                  <option key={k} value={k}>
-                                                    {schoolLabel(k)}
-                                                  </option>
-                                                ))}
-                                            </Select>
-                                          </div>
-
-                                          <div>
-                                            <label className="text-xs text-text">Alcance</label>
-                                            <Input
-                                              className="mt-1"
-                                              value={entry.homebrew.range ?? ''}
-                                              onChange={(e) => {
-                                                const range = e.target.value || undefined
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? { ...s, homebrew: { ...s.homebrew!, range } }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                              placeholder="ex: 18 m / Toque / Pessoal"
-                                            />
-                                          </div>
-
-                                          <div>
-                                            <label className="text-xs text-text">Área</label>
-                                            <Input
-                                              className="mt-1"
-                                              value={entry.homebrew.area ?? ''}
-                                              onChange={(e) => {
-                                                const area = e.target.value || undefined
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? { ...s, homebrew: { ...s.homebrew!, area } }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                              placeholder="ex: cone 15ft / esfera 6m"
-                                            />
-                                          </div>
-
-                                          <div>
-                                            <label className="text-xs text-text">Duração</label>
-                                            <Input
-                                              className="mt-1"
-                                              value={entry.homebrew.duration ?? ''}
-                                              onChange={(e) => {
-                                                const duration = e.target.value || undefined
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? { ...s, homebrew: { ...s.homebrew!, duration } }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                              placeholder="ex: 1 minuto / 10 minutos / 1 hora"
-                                            />
-                                          </div>
-
-                                          <div>
-                                            <label className="text-xs text-text">Concentração</label>
-                                            <div className="mt-2 flex items-center gap-2">
-                                              <input
-                                                type="checkbox"
-                                                checked={Boolean(entry.homebrew.concentration)}
-                                                onChange={(e) => {
-                                                  const concentration = e.target.checked ? true : undefined
-                                                  updateCharacter(activeCharacter.id, (c) => ({
-                                                    ...c,
-                                                    spells: c.spells.map((s) =>
-                                                      s.spellIndex === entry.spellIndex
-                                                        ? {
-                                                            ...s,
-                                                            homebrew: { ...s.homebrew!, concentration },
-                                                          }
-                                                        : s,
-                                                    ),
-                                                  }))
-                                                }}
-                                              />
-                                              <span className="text-xs text-text">Exige concentração</span>
+                                            <div className="text-[11px] text-text">Nome</div>
+                                            <div className="mt-1 text-sm font-medium text-textH break-words">
+                                              {entry.homebrew.name}
                                             </div>
                                           </div>
 
                                           <div>
-                                            <label className="text-xs text-text">Componentes</label>
-                                            <div className="mt-2 flex flex-wrap items-center gap-3">
-                                              {(['V', 'S', 'M'] as const).map((comp) => {
-                                                const checked = Boolean(entry.homebrew!.components?.includes(comp))
-                                                return (
-                                                  <label key={comp} className="flex items-center gap-2 text-xs text-text">
-                                                    <input
-                                                      type="checkbox"
-                                                      checked={checked}
-                                                      onChange={(e) => {
-                                                        const nextChecked = e.target.checked
-                                                        const prev = Array.isArray(entry.homebrew!.components)
-                                                          ? entry.homebrew!.components
-                                                          : []
-                                                        const set = new Set(prev)
-                                                        if (nextChecked) set.add(comp)
-                                                        else set.delete(comp)
-                                                        const components = Array.from(set) as Array<'V' | 'S' | 'M'>
-                                                        const material =
-                                                          comp === 'M' && !nextChecked
-                                                            ? undefined
-                                                            : entry.homebrew!.material
-
-                                                        updateCharacter(activeCharacter.id, (c) => ({
-                                                          ...c,
-                                                          spells: c.spells.map((s) =>
-                                                            s.spellIndex === entry.spellIndex
-                                                              ? {
-                                                                  ...s,
-                                                                  homebrew: {
-                                                                    ...s.homebrew!,
-                                                                    components: components.length ? components : undefined,
-                                                                    material: material?.trim() ? material : undefined,
-                                                                  },
-                                                                }
-                                                              : s,
-                                                          ),
-                                                        }))
-                                                      }}
-                                                    />
-                                                    <span>{comp}</span>
-                                                  </label>
-                                                )
-                                              })}
-                                            </div>
-
-                                            {entry.homebrew!.components?.includes('M') ? (
-                                              <div className="mt-2">
-                                                <Input
-                                                  className="mt-1"
-                                                  value={entry.homebrew!.material ?? ''}
-                                                  onChange={(e) => {
-                                                    const material = e.target.value || undefined
-                                                    updateCharacter(activeCharacter.id, (c) => ({
-                                                      ...c,
-                                                      spells: c.spells.map((s) =>
-                                                        s.spellIndex === entry.spellIndex
-                                                          ? { ...s, homebrew: { ...s.homebrew!, material } }
-                                                          : s,
-                                                      ),
-                                                    }))
-                                                  }}
-                                                  placeholder="Material (ex: um pedaço de fio de cobre…)"
-                                                />
-                                              </div>
-                                            ) : null}
+                                            <div className="text-[11px] text-text">Nível</div>
+                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.level}</div>
                                           </div>
 
                                           <div>
-                                            <label className="text-xs text-text">Dano (base)</label>
-                                            <Input
-                                              className="mt-1"
-                                              value={entry.homebrew.damageDice ?? ''}
-                                              onChange={(e) => {
-                                                const damageDice = e.target.value || undefined
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? { ...s, homebrew: { ...s.homebrew!, damageDice } }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                              placeholder="ex: 2d6"
-                                            />
+                                            <div className="text-[11px] text-text">Escola</div>
+                                            <div className="mt-1 text-sm text-textH">{schoolLabel(entry.homebrew.school)}</div>
                                           </div>
 
                                           <div>
-                                            <label className="text-xs text-text">Mecânica</label>
-                                            <Select
-                                              className="mt-1"
-                                              value={entry.homebrew.mechanic ?? 'none'}
-                                              onChange={(e) => {
-                                                const mechanic = e.target.value as HomebrewSpellMechanic
-                                                updateCharacter(activeCharacter.id, (c) => ({
-                                                  ...c,
-                                                  spells: c.spells.map((s) =>
-                                                    s.spellIndex === entry.spellIndex
-                                                      ? {
-                                                          ...s,
-                                                          homebrew: {
-                                                            ...s.homebrew!,
-                                                            mechanic,
-                                                            saveAbility:
-                                                              mechanic === 'save' || mechanic === 'both'
-                                                                ? (s.homebrew!.saveAbility ?? 'dex')
-                                                                : undefined,
-                                                          },
-                                                        }
-                                                      : s,
-                                                  ),
-                                                }))
-                                              }}
-                                            >
-                                              <option value="none">Nenhuma</option>
-                                              <option value="attack">Ataque</option>
-                                              <option value="save">Teste de resistência</option>
-                                              <option value="both">Ataque + Teste</option>
-                                            </Select>
+                                            <div className="text-[11px] text-text">Componentes</div>
+                                            <div className="mt-1 text-sm text-textH">
+                                              {(() => {
+                                                const comps = Array.isArray(entry.homebrew.components)
+                                                  ? entry.homebrew.components
+                                                  : ([] as Array<'V' | 'S' | 'M'>)
+                                                const base = (['V', 'S', 'M'] as const).filter((c) => comps.includes(c))
+                                                if (!base.length && !entry.homebrew.material?.trim()) return '—'
+                                                const parts: string[] = [...base]
+                                                const mat = entry.homebrew.material?.trim()
+                                                if (mat) parts.push(`M (${mat})`)
+                                                return parts.join(', ')
+                                              })()}
+                                            </div>
                                           </div>
 
-                                          {(entry.homebrew.mechanic === 'save' || entry.homebrew.mechanic === 'both') ? (
-                                            <div>
-                                              <label className="text-xs text-text">Resistência (atributo)</label>
-                                              <Select
-                                                className="mt-1"
-                                                value={entry.homebrew.saveAbility ?? 'dex'}
-                                                onChange={(e) => {
-                                                  const saveAbility = e.target.value as Ability
-                                                  updateCharacter(activeCharacter.id, (c) => ({
-                                                    ...c,
-                                                    spells: c.spells.map((s) =>
-                                                      s.spellIndex === entry.spellIndex
-                                                        ? { ...s, homebrew: { ...s.homebrew!, saveAbility } }
-                                                        : s,
-                                                    ),
-                                                  }))
-                                                }}
-                                              >
-                                                {ABILITY_KEYS.map((key) => (
-                                                  <option key={key} value={key}>
-                                                    {abilityShort(key)}
-                                                  </option>
-                                                ))}
-                                              </Select>
+                                          <div>
+                                            <div className="text-[11px] text-text">Alcance</div>
+                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.range?.trim() || '—'}</div>
+                                          </div>
+
+                                          <div>
+                                            <div className="text-[11px] text-text">Área</div>
+                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.area?.trim() || '—'}</div>
+                                          </div>
+
+                                          <div>
+                                            <div className="text-[11px] text-text">Duração</div>
+                                            <div className="mt-1 text-sm text-textH">
+                                              {entry.homebrew.duration?.trim() || '—'}
+                                              {entry.homebrew.concentration ? ' (Concentração)' : ''}
                                             </div>
-                                          ) : null}
+                                          </div>
+
+                                          <div>
+                                            <div className="text-[11px] text-text">Dano (base)</div>
+                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.damageDice?.trim() || '—'}</div>
+                                          </div>
+
+                                          <div>
+                                            <div className="text-[11px] text-text">Mecânica</div>
+                                            <div className="mt-1 text-sm text-textH">
+                                              {entry.homebrew.mechanic === 'attack'
+                                                ? 'Ataque'
+                                                : entry.homebrew.mechanic === 'save'
+                                                  ? 'Teste de resistência'
+                                                  : entry.homebrew.mechanic === 'both'
+                                                    ? 'Ataque + Teste'
+                                                    : 'Nenhuma'}
+                                              {(entry.homebrew.mechanic === 'save' || entry.homebrew.mechanic === 'both')
+                                                ? ` (${abilityShort(entry.homebrew.saveAbility ?? 'dex')})`
+                                                : ''}
+                                            </div>
+                                          </div>
                                         </div>
 
                                         <div className="mt-3">
                                           <div className="text-xs font-semibold text-textH">Descrição</div>
-                                          <Textarea
-                                            className="mt-2"
-                                            value={entry.homebrew.desc ?? ''}
-                                            onChange={(e) => {
-                                              const desc = e.target.value || undefined
-                                              updateCharacter(activeCharacter.id, (c) => ({
-                                                ...c,
-                                                spells: c.spells.map((s) =>
-                                                  s.spellIndex === entry.spellIndex
-                                                    ? { ...s, homebrew: { ...s.homebrew!, desc } }
-                                                    : s,
-                                                ),
-                                              }))
-                                            }}
-                                            placeholder="Texto livre…"
-                                          />
+                                          <div className="mt-2 space-y-2 text-sm text-text">
+                                            {(entry.homebrew.desc?.trim() ? [entry.homebrew.desc.trim()] : []).map((p, i) => (
+                                              <p key={i}>
+                                                <InlineMarkdown text={p} />
+                                              </p>
+                                            ))}
+                                            {!entry.homebrew.desc?.trim() ? <div className="text-xs text-text">—</div> : null}
+                                          </div>
                                         </div>
 
-                                        <div className="mt-3">
-                                          <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
-                                          <Textarea
-                                            className="mt-2"
-                                            value={entry.homebrew.higherLevel ?? ''}
-                                            onChange={(e) => {
-                                              const higherLevel = e.target.value || undefined
-                                              updateCharacter(activeCharacter.id, (c) => ({
-                                                ...c,
-                                                spells: c.spells.map((s) =>
-                                                  s.spellIndex === entry.spellIndex
-                                                    ? { ...s, homebrew: { ...s.homebrew!, higherLevel } }
-                                                    : s,
-                                                ),
-                                              }))
-                                            }}
-                                            placeholder="Opcional…"
-                                          />
-                                        </div>
+                                        {entry.homebrew.higherLevel?.trim() ? (
+                                          <div className="mt-3 rounded-lg border border-border bg-bg p-3">
+                                            <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
+                                            <div className="mt-2 space-y-2 text-sm text-text">
+                                              <p>
+                                                <InlineMarkdown text={entry.homebrew.higherLevel.trim()} />
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ) : null}
                                       </div>
                                     ) : (
                                       <div>
