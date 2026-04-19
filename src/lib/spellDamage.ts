@@ -127,7 +127,10 @@ export function estimateSpellDamageDice(args: {
 
   if (spell.level === 0) {
     const mult = cantripDiceMultiplier(args.characterLevel)
-    return formatDice({ count: base.count * mult, size: base.size })
+    // Support homebrew/notes patterns like "0d6" to mean "starts at 0 dice, then scales".
+    // 5e cantrip tiers are represented by mult = 1/2/3/4, so we use (mult - 1) as the dice count.
+    const count = base.count === 0 ? Math.max(0, mult - 1) : base.count * mult
+    return formatDice({ count, size: base.size })
   }
 
   const slot = Math.max(spell.level, args.slotLevel)

@@ -78,6 +78,11 @@ export interface HomebrewSpell {
   /** Use DnD school canonical names (e.g. "Evocation") */
   school: string
 
+  /** Optional: default casting time for this homebrew spell. */
+  castingTimeKind?: SpellCastTimeKind
+  /** Optional: when castingTimeKind === 'reaction', describes when the reaction can be taken. */
+  reactionWhen?: string
+
   /** Optional: whether this spell can be cast as a ritual. */
   ritual?: boolean
 

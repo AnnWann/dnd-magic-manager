@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Character, DndSpell, SpellEffect } from '../types'
+import type { Character, DndSpell, HomebrewSpell, SpellEffect } from '../types'
 import { readLocalStorageJson, writeLocalStorageJson } from './storage'
 
 export type AppStateV1 = {
@@ -12,6 +12,9 @@ export type AppStateV1 = {
 
   /** Optional: reusable modifier presets by spellIndex (synced across devices). */
   effectPresets?: Record<string, SpellEffect[]>
+
+  /** Optional: reusable homebrew spell definitions keyed by hb:... index (synced across devices). */
+  homebrewLibrary?: Record<string, HomebrewSpell>
 }
 
 const LOCAL_STATE_KEY = 'dndmm.appState.v1'
@@ -25,7 +28,14 @@ type SyncStatus =
   | { kind: 'error'; message: string }
 
 function defaultState(): AppStateV1 {
-  return { version: 1, characters: [], activeCharacterId: '', spellCache: {}, effectPresets: {} }
+  return {
+    version: 1,
+    characters: [],
+    activeCharacterId: '',
+    spellCache: {},
+    effectPresets: {},
+    homebrewLibrary: {},
+  }
 }
 
 function getKeyFromUrl(): string {

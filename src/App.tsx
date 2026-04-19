@@ -89,6 +89,7 @@ function App() {
   const activeCharacterId = appState.activeCharacterId
   const spellCache = appState.spellCache ?? {}
   const effectPresets = appState.effectPresets ?? {}
+  const homebrewLibrary = appState.homebrewLibrary ?? {}
 
   const activeCharacter = useMemo(
     () => characters.find((c) => c.id === activeCharacterId) ?? characters[0],
@@ -98,7 +99,14 @@ function App() {
   useEffect(() => {
     if (characters.length === 0) {
       const c = newCharacter('Meu personagem')
-      setAppState({ version: 1, characters: [c], activeCharacterId: c.id, spellCache: {}, effectPresets: {} })
+      setAppState({
+        version: 1,
+        characters: [c],
+        activeCharacterId: c.id,
+        spellCache: {},
+        effectPresets: {},
+        homebrewLibrary: {},
+      })
       return
     }
     if (!activeCharacter && characters[0]) {
@@ -142,6 +150,57 @@ function App() {
   const [spellListError, setSpellListError] = useState<string | null>(null)
   const [spellDetails, setSpellDetails] = useState<Record<string, DndSpell | undefined>>({})
   const [spellDetailsError, setSpellDetailsError] = useState<Record<string, string | undefined>>({})
+
+  useEffect(() => {
+    // Bootstrap: if characters already contain homebrew spells, ensure they are also
+    // present in the shared homebrew library for reuse across characters/devices.
+    // Also backfill effect presets from existing character spells.
+    setAppState((prev) => {
+      const prevLib = prev.homebrewLibrary ?? {}
+      let nextLib = prevLib
+      let changedLib = false
+
+      const prevPresets = prev.effectPresets ?? {}
+      let nextPresets = prevPresets
+      let changedPresets = false
+
+      for (const c of prev.characters) {
+        for (const s of c.spells) {
+          if (!s.homebrew) continue
+          const idx = s.spellIndex
+          const hb = s.homebrew
+          const hbFinal = {
+            ...hb,
+            castingTimeKind: hb.castingTimeKind ?? s.castTimeKind,
+            reactionWhen: (hb.reactionWhen ?? s.reactionWhen)?.trim() || undefined,
+          }
+          if (!prevLib[idx]) {
+            if (nextLib === prevLib) nextLib = { ...prevLib }
+            nextLib[idx] = hbFinal
+            changedLib = true
+          }
+        }
+      }
+
+      for (const c of prev.characters) {
+        for (const s of c.spells) {
+          const eff = s.effects
+          if (!eff || eff.length === 0) continue
+          if (prevPresets[s.spellIndex]) continue
+          if (nextPresets === prevPresets) nextPresets = { ...prevPresets }
+          nextPresets[s.spellIndex] = eff
+          changedPresets = true
+        }
+      }
+
+      if (!changedLib && !changedPresets) return prev
+      return {
+        ...prev,
+        homebrewLibrary: changedLib ? nextLib : prev.homebrewLibrary,
+        effectPresets: changedPresets ? nextPresets : prev.effectPresets,
+      }
+    })
+  }, [setAppState])
 
   const [addedNameFilter, setAddedNameFilter] = useState('')
   const [addedLevelFilter, setAddedLevelFilter] = useState<MagicCircleLevel | 'any'>('any')
@@ -270,6 +329,11 @@ function App() {
   async function addSpellToActiveTranslated(spellRef: DndApiRef) {
     if (!activeCharacter) return
     if (activeCharacterSpellsSet.has(spellRef.index)) return
+
+    if (isHomebrewIndex(spellRef.index)) {
+      await addSpellToActive(spellRef)
+      return
+    }
 
     setTranslateStatus({ kind: 'loading', spellIndex: spellRef.index })
     try {
@@ -499,22 +563,35 @@ function App() {
     })
   }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, spellDetails, preparedMeta])
 
+  const availableSpellRefs = useMemo((): DndApiRef[] => {
+    const homebrews: DndApiRef[] = Object.entries(homebrewLibrary).map(([index, hb]) => ({
+      index,
+      name: hb.name,
+      url: `/homebrew/${encodeURIComponent(index)}`,
+    }))
+    return [...(spellList ?? []), ...homebrews]
+  }, [homebrewLibrary, spellList])
+
   const unaddedResults = useMemo(() => {
-    if (!spellList) return [] as DndApiRef[]
+    if (!availableSpellRefs.length) return [] as DndApiRef[]
     const q = unaddedSearch.trim().toLowerCase()
     if (!q) return [] as DndApiRef[]
-    const results = spellList
+    const results = availableSpellRefs
       .filter((s) => !activeCharacterSpellsSet.has(s.index))
       .filter((s) => s.name.toLowerCase().includes(q))
       .slice(0, 30)
     return results
-  }, [activeCharacterSpellsSet, spellList, unaddedSearch])
+  }, [activeCharacterSpellsSet, availableSpellRefs, unaddedSearch])
 
   function updateCharacter(characterId: string, updater: (c: Character) => Character) {
     setAppState((prev) => {
       const prevPresets = prev.effectPresets ?? {}
       let nextPresets = prevPresets
       let changedPresets = false
+
+      const prevHomebrew = prev.homebrewLibrary ?? {}
+      let nextHomebrew = prevHomebrew
+      let changedHomebrew = false
 
       const nextCharacters = prev.characters.map((c) => {
         if (c.id !== characterId) return c
@@ -530,6 +607,22 @@ function App() {
             nextPresets[nextSpell.spellIndex] = nextEffects ?? []
             changedPresets = true
           }
+
+          if (nextSpell.homebrew) {
+            const idx = nextSpell.spellIndex
+            const hb = nextSpell.homebrew
+            const hbFinal = {
+              ...hb,
+              castingTimeKind: hb.castingTimeKind ?? nextSpell.castTimeKind,
+              reactionWhen: (hb.reactionWhen ?? nextSpell.reactionWhen)?.trim() || undefined,
+            }
+            const prevHb = prevHomebrew[idx]
+            if (!prevHb || JSON.stringify(prevHb) !== JSON.stringify(hbFinal)) {
+              if (nextHomebrew === prevHomebrew) nextHomebrew = { ...prevHomebrew }
+              nextHomebrew[idx] = hbFinal
+              changedHomebrew = true
+            }
+          }
         }
 
         return nextC
@@ -539,6 +632,7 @@ function App() {
         ...prev,
         characters: nextCharacters,
         effectPresets: changedPresets ? nextPresets : prev.effectPresets,
+        homebrewLibrary: changedHomebrew ? nextHomebrew : prev.homebrewLibrary,
       }
     })
   }
@@ -579,6 +673,50 @@ function App() {
   async function addSpellToActive(spellRef: DndApiRef) {
     if (!activeCharacter) return
     if (activeCharacterSpellsSet.has(spellRef.index)) return
+
+    if (isHomebrewIndex(spellRef.index)) {
+      const hb = homebrewLibrary[spellRef.index]
+      if (!hb) return
+
+      const characterClasses = activeCharacter.classes
+      const eligible = characterClasses.length
+        ? characterClasses.filter((c) => (hb.classes ?? []).includes(spellListClassIndex(c.classIndex)))
+        : []
+      const sourceClassId = eligible[0]?.id ?? characterClasses[0]?.id
+
+      const newSpell: AddedSpell = {
+        spellIndex: spellRef.index,
+        spellName: hb.name,
+        homebrew: hb,
+        sourceType: 'class',
+        sourceClassId,
+        addedAt: Date.now(),
+        castSlotLevel: hb.level,
+        castTimeKind: hb.castingTimeKind ?? 'action',
+        reactionWhen:
+          (hb.castingTimeKind ?? 'action') === 'reaction'
+            ? (hb.reactionWhen?.trim() || undefined)
+            : undefined,
+        effects: effectPresets[spellRef.index],
+      }
+
+      updateCharacter(activeCharacter.id, (c) => ({
+        ...c,
+        spells: [...c.spells, newSpell].sort((a, b) => {
+          const aLevel = (a.homebrew ? a.homebrew.level : spellDetails[a.spellIndex]?.level) ?? 99
+          const bLevel = (b.homebrew ? b.homebrew.level : spellDetails[b.spellIndex]?.level) ?? 99
+          if (aLevel !== bLevel) return aLevel - bLevel
+
+          const aName = (a.displayNamePt?.trim() || a.spellName).toLocaleLowerCase('pt-BR')
+          const bName = (b.displayNamePt?.trim() || b.spellName).toLocaleLowerCase('pt-BR')
+          const byName = aName.localeCompare(bName, 'pt-BR')
+          if (byName !== 0) return byName
+
+          return a.spellIndex.localeCompare(b.spellIndex)
+        }),
+      }))
+      return
+    }
 
     const detail = await getSpellFromBaseOrApi(spellRef.index)
     setSpellDetails((prev) => ({ ...prev, [detail.index]: detail }))
@@ -692,6 +830,8 @@ function App() {
       name,
       level: hbLevel,
       school: hbSchool,
+      castingTimeKind: hbCastTimeKind,
+      reactionWhen: hbCastTimeKind === 'reaction' ? (hbReactionWhen.trim() || undefined) : undefined,
       ritual: hbRitual || undefined,
       classes: hbBaseClasses.length ? hbBaseClasses : undefined,
       components: components.length ? components : undefined,
@@ -723,6 +863,7 @@ function App() {
       castTimeKind: hbCastTimeKind,
       reactionWhen:
         hbCastTimeKind === 'reaction' ? (hbReactionWhen.trim() || undefined) : undefined,
+      effects: effectPresets[spellIndex],
     }
 
     updateCharacter(activeCharacter.id, (c) => ({
@@ -1643,7 +1784,7 @@ function App() {
           />
 
           <AddSpellsCard
-            spellList={spellList}
+            spellList={availableSpellRefs.length ? availableSpellRefs : null}
             spellListError={spellListError}
             unaddedSearch={unaddedSearch}
             setUnaddedSearch={setUnaddedSearch}

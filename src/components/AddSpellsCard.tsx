@@ -84,10 +84,13 @@ export function AddSpellsCard(props: {
                 ) : (
                   unaddedResults.map((s) => {
                     const auto = activeCharacter.classes[0]
+                    const isHomebrew = s.index.startsWith('hb:')
                     const isBusy =
+                      !isHomebrew &&
                       translateStatus.kind === 'loading' &&
                       translateStatus.spellIndex === s.index
                     const rowError =
+                      !isHomebrew &&
                       translateStatus.kind === 'error' &&
                       translateStatus.spellIndex === s.index
                         ? translateStatus.message
@@ -112,21 +115,27 @@ export function AddSpellsCard(props: {
 
                         <td className="p-2">
                           <div className="flex flex-col items-start gap-1">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => void addSpellToActiveTranslated(s)}
-                              disabled={
-                                activeCharacterSpellsSet.has(s.index) ||
-                                translateStatus.kind === 'loading'
-                              }
-                              title="Traduz e já salva em PT-BR no personagem"
-                            >
-                              {isBusy ? 'Traduzindo…' : 'Traduzir e adicionar'}
-                            </Button>
-                            {rowError ? (
-                              <div className="text-[11px] text-text">{rowError}</div>
-                            ) : null}
+                            {isHomebrew ? (
+                              <div className="text-[11px] text-text">—</div>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => void addSpellToActiveTranslated(s)}
+                                  disabled={
+                                    activeCharacterSpellsSet.has(s.index) ||
+                                    translateStatus.kind === 'loading'
+                                  }
+                                  title="Traduz e já salva em PT-BR no personagem"
+                                >
+                                  {isBusy ? 'Traduzindo…' : 'Traduzir e adicionar'}
+                                </Button>
+                                {rowError ? (
+                                  <div className="text-[11px] text-text">{rowError}</div>
+                                ) : null}
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>

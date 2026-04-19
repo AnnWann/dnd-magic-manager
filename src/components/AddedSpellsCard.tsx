@@ -283,7 +283,8 @@ export function AddedSpellsCard(props: {
 
           if (spell?.level === 0) {
             const mult = cantripDiceMultiplier(ctx?.characterLevel ?? 1)
-            return formatDice({ count: parsed.count * mult, size: parsed.size })
+            const count = parsed.count === 0 ? Math.max(0, mult - 1) : parsed.count * mult
+            return formatDice({ count, size: parsed.size })
           }
 
           if (spell && typeof spell.level === 'number' && spell.level > 0) {
