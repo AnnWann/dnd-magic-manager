@@ -165,6 +165,10 @@ export function AddedSpellsCard(props: {
     ? Math.max(0, Math.trunc(slotUsage.pactUsed))
     : 0
 
+  const [addFreeUsesSpellIndex, setAddFreeUsesSpellIndex] = useState<string>(() => activeCharacter.spells[0]?.spellIndex ?? '')
+  const [addFreeUsesMax, setAddFreeUsesMax] = useState<number>(1)
+  const [addFreeUsesReset, setAddFreeUsesReset] = useState<RestResetKind>('longRest')
+
   const freeUseSpells = useMemo(() => {
     const list = activeCharacter.spells
       .map((s) => {
@@ -189,6 +193,9 @@ export function AddedSpellsCard(props: {
 
     return list.sort((a, b) => a.name.toLocaleLowerCase('pt-BR').localeCompare(b.name.toLocaleLowerCase('pt-BR'), 'pt-BR'))
   }, [activeCharacter.spells])
+
+  const hasAnySlots = slotMeta.spellcastingLevel > 0 || Boolean(slotMeta.pact)
+  const canShowResources = hasAnySlots || activeCharacter.spells.length > 0
 
   const [openMaterialSpellIndex, setOpenMaterialSpellIndex] = useState<string | null>(null)
   const [editMaterialSpellIndex, setEditMaterialSpellIndex] = useState<string | null>(null)
@@ -447,179 +454,266 @@ export function AddedSpellsCard(props: {
               </div>
             ) : null}
 
-            {(slotMeta.spellcastingLevel > 0 || slotMeta.pact) ? (
+            {canShowResources ? (
               <div className="mt-3">
-                <div className="text-xs font-semibold text-textH">Slots</div>
-                <div className="mt-2 flex flex-wrap items-end gap-2">
-                  {slotMeta.spellcastingLevel > 0 ? (
-                    <div className="text-[11px] text-text">
-                      Nível conjurador (multiclasse): <span className="font-mono text-textH">{slotMeta.spellcastingLevel}</span>
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap gap-2">
-                    {Array.from({ length: 9 }, (_, i) => i + 1).map((lvl) => {
-                      const total = slotMeta.slotsByLevel[lvl] ?? 0
-                      if (!total) return null
-                      const used = Math.max(0, Math.trunc(usedByLevel[lvl] ?? 0))
-                      const remaining = Math.max(0, total - used)
-                      return (
-                        <div key={lvl} className="rounded-md border border-border bg-bg px-2 py-1">
-                          <div className="text-[11px] text-text">Círc. {lvl}</div>
-                          <div className="mt-0.5 flex items-center gap-2">
-                            <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="h-7 w-7 px-0"
-                              title="Recuperar 1"
-                              disabled={used <= 0}
-                              onClick={() => {
-                                updateCharacter(activeCharacter.id, (c) => {
-                                  const prev = c.slotUsage ?? {}
-                                  const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
-                                  while (arr.length < 10) arr.push(0)
-                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0) - 1)
-                                  return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
-                                })
-                              }}
-                            >
-                              +
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="h-7 w-7 px-0"
-                              title="Gastar 1"
-                              disabled={remaining <= 0}
-                              onClick={() => {
-                                updateCharacter(activeCharacter.id, (c) => {
-                                  const prev = c.slotUsage ?? {}
-                                  const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
-                                  while (arr.length < 10) arr.push(0)
-                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0)) + 1
-                                  return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
-                                })
-                              }}
-                            >
-                              −
-                            </Button>
-                          </div>
+                {hasAnySlots ? (
+                  <>
+                    <div className="text-xs font-semibold text-textH">Slots</div>
+                    <div className="mt-2 flex flex-wrap items-end gap-2">
+                      {slotMeta.spellcastingLevel > 0 ? (
+                        <div className="text-[11px] text-text">
+                          Nível conjurador (multiclasse): <span className="font-mono text-textH">{slotMeta.spellcastingLevel}</span>
                         </div>
-                      )
-                    })}
+                      ) : null}
 
-                    {slotMeta.pact ? (
-                      (() => {
-                        const total = slotMeta.pact.slots
-                        const used = pactUsed
-                        const remaining = Math.max(0, total - used)
-                        return (
-                          <div className="rounded-md border border-border bg-bg px-2 py-1">
-                            <div className="text-[11px] text-text">Pacto (círc. {slotMeta.pact.slotLevel})</div>
-                            <div className="mt-0.5 flex items-center gap-2">
-                              <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 w-7 px-0"
-                                title="Recuperar 1 (curto)"
-                                disabled={used <= 0}
-                                onClick={() => {
-                                  updateCharacter(activeCharacter.id, (c) => {
-                                    const prev = c.slotUsage ?? {}
-                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number) - 1)
-                                    return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
-                                  })
-                                }}
-                              >
-                                +
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 w-7 px-0"
-                                title="Gastar 1 (curto)"
-                                disabled={remaining <= 0}
-                                onClick={() => {
-                                  updateCharacter(activeCharacter.id, (c) => {
-                                    const prev = c.slotUsage ?? {}
-                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number)) + 1
-                                    return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
-                                  })
-                                }}
-                              >
-                                −
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 px-2"
-                                title="Reset (descanso curto)"
-                                onClick={() => {
-                                  updateCharacter(activeCharacter.id, (c) => {
-                                    const prev = c.slotUsage ?? {}
-                                    const nextSpells = c.spells.map((s) => {
-                                      const fu = s.freeUses
-                                      if (!fu) return s
-                                      const reset = (fu.reset ?? 'longRest') as RestResetKind
-                                      if (reset !== 'shortRest') return s
-                                      const used =
-                                        typeof fu.used === 'number' && Number.isFinite(fu.used)
-                                          ? Math.max(0, Math.trunc(fu.used))
-                                          : 0
-                                      if (used === 0) return s
-                                      return { ...s, freeUses: { ...fu, used: 0 } }
+                      <div className="flex flex-wrap gap-2">
+                        {Array.from({ length: 9 }, (_, i) => i + 1).map((lvl) => {
+                          const total = slotMeta.slotsByLevel[lvl] ?? 0
+                          if (!total) return null
+                          const used = Math.max(0, Math.trunc(usedByLevel[lvl] ?? 0))
+                          const remaining = Math.max(0, total - used)
+                          return (
+                            <div key={lvl} className="rounded-md border border-border bg-bg px-2 py-1">
+                              <div className="text-[11px] text-text">Círc. {lvl}</div>
+                              <div className="mt-0.5 flex items-center gap-2">
+                                <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-7 w-7 px-0"
+                                  title="Recuperar 1"
+                                  disabled={used <= 0}
+                                  onClick={() => {
+                                    updateCharacter(activeCharacter.id, (c) => {
+                                      const prev = c.slotUsage ?? {}
+                                      const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
+                                      while (arr.length < 10) arr.push(0)
+                                      arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0) - 1)
+                                      return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
                                     })
-                                    return { ...c, spells: nextSpells, slotUsage: { ...prev, pactUsed: 0 } }
-                                  })
-                                }}
-                              >
-                                Curto
-                              </Button>
+                                  }}
+                                >
+                                  +
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-7 w-7 px-0"
+                                  title="Gastar 1"
+                                  disabled={remaining <= 0}
+                                  onClick={() => {
+                                    updateCharacter(activeCharacter.id, (c) => {
+                                      const prev = c.slotUsage ?? {}
+                                      const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
+                                      while (arr.length < 10) arr.push(0)
+                                      arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0)) + 1
+                                      return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
+                                    })
+                                  }}
+                                >
+                                  −
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        )
-                      })()
-                    ) : null}
-                  </div>
+                          )
+                        })}
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-9"
-                    title="Reset (descanso longo)"
-                    onClick={() => {
-                      updateCharacter(activeCharacter.id, (c) => {
-                        const prev = c.slotUsage ?? {}
-                        const nextSpells = c.spells.map((s) => {
-                          const fu = s.freeUses
-                          if (!fu) return s
-                          const reset = (fu.reset ?? 'longRest') as RestResetKind
-                          if (reset !== 'longRest') return s
-                          const used =
-                            typeof fu.used === 'number' && Number.isFinite(fu.used)
-                              ? Math.max(0, Math.trunc(fu.used))
-                              : 0
-                          if (used === 0) return s
-                          return { ...s, freeUses: { ...fu, used: 0 } }
-                        })
-                        return {
-                          ...c,
-                          spells: nextSpells,
-                          slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-                        }
-                      })
-                    }}
-                  >
-                    Descanso longo
-                  </Button>
-                </div>
+                        {slotMeta.pact ? (
+                          (() => {
+                            const total = slotMeta.pact.slots
+                            const used = pactUsed
+                            const remaining = Math.max(0, total - used)
+                            return (
+                              <div className="rounded-md border border-border bg-bg px-2 py-1">
+                                <div className="text-[11px] text-text">Pacto (círc. {slotMeta.pact.slotLevel})</div>
+                                <div className="mt-0.5 flex items-center gap-2">
+                                  <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-7 w-7 px-0"
+                                    title="Recuperar 1 (curto)"
+                                    disabled={used <= 0}
+                                    onClick={() => {
+                                      updateCharacter(activeCharacter.id, (c) => {
+                                        const prev = c.slotUsage ?? {}
+                                        const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number) - 1)
+                                        return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
+                                      })
+                                    }}
+                                  >
+                                    +
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-7 w-7 px-0"
+                                    title="Gastar 1 (curto)"
+                                    disabled={remaining <= 0}
+                                    onClick={() => {
+                                      updateCharacter(activeCharacter.id, (c) => {
+                                        const prev = c.slotUsage ?? {}
+                                        const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number)) + 1
+                                        return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
+                                      })
+                                    }}
+                                  >
+                                    −
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-7 px-2"
+                                    title="Reset (descanso curto)"
+                                    onClick={() => {
+                                      updateCharacter(activeCharacter.id, (c) => {
+                                        const prev = c.slotUsage ?? {}
+                                        const nextSpells = c.spells.map((s) => {
+                                          const fu = s.freeUses
+                                          if (!fu) return s
+                                          const reset = (fu.reset ?? 'longRest') as RestResetKind
+                                          if (reset !== 'shortRest') return s
+                                          const used =
+                                            typeof fu.used === 'number' && Number.isFinite(fu.used)
+                                              ? Math.max(0, Math.trunc(fu.used))
+                                              : 0
+                                          if (used === 0) return s
+                                          return { ...s, freeUses: { ...fu, used: 0 } }
+                                        })
+                                        return { ...c, spells: nextSpells, slotUsage: { ...prev, pactUsed: 0 } }
+                                      })
+                                    }}
+                                  >
+                                    Curto
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          })()
+                        ) : null}
+                      </div>
 
-                {freeUseSpells.length ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-9"
+                        title="Reset (descanso longo)"
+                        onClick={() => {
+                          updateCharacter(activeCharacter.id, (c) => {
+                            const prev = c.slotUsage ?? {}
+                            const nextSpells = c.spells.map((s) => {
+                              const fu = s.freeUses
+                              if (!fu) return s
+                              const reset = (fu.reset ?? 'longRest') as RestResetKind
+                              if (reset !== 'longRest') return s
+                              const used =
+                                typeof fu.used === 'number' && Number.isFinite(fu.used)
+                                  ? Math.max(0, Math.trunc(fu.used))
+                                  : 0
+                              if (used === 0) return s
+                              return { ...s, freeUses: { ...fu, used: 0 } }
+                            })
+                            return {
+                              ...c,
+                              spells: nextSpells,
+                              slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+                            }
+                          })
+                        }}
+                      >
+                        Descanso longo
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
+
+                <div className={hasAnySlots ? 'mt-3' : 'mt-2'}>
                   <div className="mt-3 rounded-lg border border-border bg-bg p-3">
                     <div className="text-xs font-semibold text-textH">Conjurações grátis</div>
                     <div className="mt-1 text-xs text-text">Usos que não gastam slot (ex: Fey Touched).</div>
+
+                    <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-4">
+                      <div className="md:col-span-2">
+                        <label className="text-[11px] text-text">Magia</label>
+                        <Select
+                          className="mt-1 h-9"
+                          value={addFreeUsesSpellIndex}
+                          onChange={(e) => setAddFreeUsesSpellIndex(e.target.value)}
+                        >
+                          {activeCharacter.spells
+                            .map((s) => ({ idx: s.spellIndex, name: s.displayNamePt?.trim() || s.spellName }))
+                            .sort((a, b) => a.name.toLocaleLowerCase('pt-BR').localeCompare(b.name.toLocaleLowerCase('pt-BR'), 'pt-BR'))
+                            .map((s) => (
+                              <option key={s.idx} value={s.idx}>
+                                {s.name}
+                              </option>
+                            ))}
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] text-text">Qtd. (máx.)</label>
+                        <Input
+                          className="mt-1 h-9"
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          value={String(addFreeUsesMax)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onChange={(e) => {
+                            const n = Math.max(1, Math.trunc(Number(e.target.value)))
+                            setAddFreeUsesMax(Number.isFinite(n) ? n : 1)
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] text-text">Reset</label>
+                        <Select
+                          className="mt-1 h-9"
+                          value={addFreeUsesReset}
+                          onChange={(e) => setAddFreeUsesReset(e.target.value as RestResetKind)}
+                        >
+                          <option value="longRest">Descanso longo</option>
+                          <option value="shortRest">Descanso curto</option>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="mt-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={!addFreeUsesSpellIndex}
+                        onClick={() => {
+                          const idx = addFreeUsesSpellIndex
+                          if (!idx) return
+                          updateCharacter(activeCharacter.id, (c) => ({
+                            ...c,
+                            spells: c.spells.map((s) => {
+                              if (s.spellIndex !== idx) return s
+                              const prev = s.freeUses
+                              const usedRaw = prev?.used
+                              const used =
+                                typeof usedRaw === 'number' && Number.isFinite(usedRaw)
+                                  ? Math.max(0, Math.trunc(usedRaw))
+                                  : 0
+                              return {
+                                ...s,
+                                freeUses: {
+                                  max: Math.max(1, Math.trunc(addFreeUsesMax)),
+                                  used: Math.min(used, Math.max(1, Math.trunc(addFreeUsesMax))),
+                                  reset: addFreeUsesReset,
+                                },
+                              }
+                            }),
+                          }))
+                        }}
+                      >
+                        Adicionar / atualizar
+                      </Button>
+                    </div>
 
                     <div className="mt-2 space-y-2">
                       {freeUseSpells.map((x) => (
@@ -766,7 +860,7 @@ export function AddedSpellsCard(props: {
                       ))}
                     </div>
                   </div>
-                ) : null}
+                </div>
               </div>
             ) : null}
           </div>
