@@ -446,14 +446,14 @@ export function AddedSpellsCard(props: {
                               size="sm"
                               variant="secondary"
                               className="h-7 w-7 px-0"
-                              title="Gastar 1"
-                              disabled={remaining <= 0}
+                              title="Recuperar 1"
+                              disabled={used <= 0}
                               onClick={() => {
                                 updateCharacter(activeCharacter.id, (c) => {
                                   const prev = c.slotUsage ?? {}
                                   const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
                                   while (arr.length < 10) arr.push(0)
-                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0)) + 1
+                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0) - 1)
                                   return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
                                 })
                               }}
@@ -464,14 +464,14 @@ export function AddedSpellsCard(props: {
                               size="sm"
                               variant="secondary"
                               className="h-7 w-7 px-0"
-                              title="Recuperar 1"
-                              disabled={used <= 0}
+                              title="Gastar 1"
+                              disabled={remaining <= 0}
                               onClick={() => {
                                 updateCharacter(activeCharacter.id, (c) => {
                                   const prev = c.slotUsage ?? {}
                                   const arr = Array.isArray(prev.usedByLevel) ? [...prev.usedByLevel] : []
                                   while (arr.length < 10) arr.push(0)
-                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0) - 1)
+                                  arr[lvl] = Math.max(0, Math.trunc(arr[lvl] ?? 0)) + 1
                                   return { ...c, slotUsage: { ...prev, usedByLevel: arr } }
                                 })
                               }}
@@ -497,12 +497,12 @@ export function AddedSpellsCard(props: {
                                 size="sm"
                                 variant="secondary"
                                 className="h-7 w-7 px-0"
-                                title="Gastar 1 (curto)"
-                                disabled={remaining <= 0}
+                                title="Recuperar 1 (curto)"
+                                disabled={used <= 0}
                                 onClick={() => {
                                   updateCharacter(activeCharacter.id, (c) => {
                                     const prev = c.slotUsage ?? {}
-                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number)) + 1
+                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number) - 1)
                                     return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
                                   })
                                 }}
@@ -513,12 +513,12 @@ export function AddedSpellsCard(props: {
                                 size="sm"
                                 variant="secondary"
                                 className="h-7 w-7 px-0"
-                                title="Recuperar 1 (curto)"
-                                disabled={used <= 0}
+                                title="Gastar 1 (curto)"
+                                disabled={remaining <= 0}
                                 onClick={() => {
                                   updateCharacter(activeCharacter.id, (c) => {
                                     const prev = c.slotUsage ?? {}
-                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number) - 1)
+                                    const nextUsed = Math.max(0, Math.trunc((prev.pactUsed ?? 0) as number)) + 1
                                     return { ...c, slotUsage: { ...prev, pactUsed: nextUsed } }
                                   })
                                 }}
@@ -558,7 +558,7 @@ export function AddedSpellsCard(props: {
                       })
                     }}
                   >
-                    Longo
+                    Descanso longo
                   </Button>
                 </div>
               </div>
