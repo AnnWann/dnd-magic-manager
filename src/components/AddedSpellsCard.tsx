@@ -577,6 +577,20 @@ export function AddedSpellsCard(props: {
                     slotLevel: effectiveSlot,
                   })
 
+                  const primaryRollLabel = (() => {
+                    if (damageEstimate !== '—') return damageEstimate
+                    if (usesSave) {
+                      if (dcSpell !== null && saveTypeName) return `CD ${dcSpell} ${saveTypeName}`
+                      if (dcSpell !== null) return `CD ${dcSpell}`
+                      if (saveTypeName) return `TR ${saveTypeName}`
+                      return 'TR'
+                    }
+                    if (usesAttack && atkSpell !== null) return `ATQ ${formatSigned(atkSpell)}`
+                    return damageEstimate
+                  })()
+
+                  const detailsSubtitle = damageEstimate === '—' && usesSave ? 'Teste / detalhes' : 'Dano / detalhes'
+
                   const textForNumericMods = (() => {
                     if (entry.homebrew) {
                       const a = entry.homebrew.desc ?? ''
@@ -806,7 +820,7 @@ export function AddedSpellsCard(props: {
 
                           <div className="hidden md:block">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono">{damageEstimate}</span>
+                              <span className="font-mono">{primaryRollLabel}</span>
 
                               {spellBaseLevel === 0 ? null : (
                                 <Select
@@ -1019,7 +1033,7 @@ export function AddedSpellsCard(props: {
                                 <div className="flex items-start justify-between gap-3 border-b border-border p-4">
                                   <div className="min-w-0">
                                     <div className="text-sm font-semibold text-textH break-words">{displayName}</div>
-                                    <div className="mt-1 text-xs text-text">Dano / detalhes</div>
+                                    <div className="mt-1 text-xs text-text">{detailsSubtitle}</div>
                                   </div>
                                   <Button size="sm" variant="secondary" onClick={() => setOpenDetailsSpellIndex(null)}>
                                     Fechar
@@ -1028,7 +1042,7 @@ export function AddedSpellsCard(props: {
 
                                 <div className="p-4">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-mono text-sm text-textH">{damageEstimate}</span>
+                                    <span className="font-mono text-sm text-textH">{primaryRollLabel}</span>
 
                                     {spellBaseLevel === 0 ? null : (
                                       <Select
