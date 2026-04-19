@@ -17,6 +17,7 @@ export type SpellEffectTarget =
   | 'ability'
   | 'condition'
   | 'economy'
+  | 'forcedMove'
   | 'conditionalDamage'
   | 'rollDice'
 
@@ -62,6 +63,13 @@ export interface SpellEffect {
   damageWhen?: string
   /** Optional: when target is conditionalDamage (dice text like "2d6"). */
   damageDice?: string
+
+  /** Optional: when target is forcedMove. */
+  forcedMoveDirection?: 'any' | 'towards' | 'away' | 'direction'
+  /** Reference point for towards/away (free-text: e.g. "você", "o conjurador", "X"). */
+  forcedMoveReference?: string
+  /** Free-text direction (e.g. "norte", "em linha reta", "para o centro da área"). */
+  forcedMoveDirectionText?: string
 }
 
 export interface HomebrewSpell {
@@ -69,6 +77,9 @@ export interface HomebrewSpell {
   level: MagicCircleLevel
   /** Use DnD school canonical names (e.g. "Evocation") */
   school: string
+
+  /** Optional: whether this spell can be cast as a ritual. */
+  ritual?: boolean
 
   /** Optional: base classes that have access to this spell (API class indexes, e.g. 'wizard'). */
   classes?: string[]
@@ -169,6 +180,7 @@ export interface DndSpell extends DndApiRef {
   level: number
   /** 5e API field (examples: "1 action", "1 bonus action", "1 reaction, which you take when ...") */
   casting_time?: string
+  ritual?: boolean
   school: DndApiRef
   classes: DndApiRef[]
   /** Spell components from 5e API, e.g. ["V","S","M"] */

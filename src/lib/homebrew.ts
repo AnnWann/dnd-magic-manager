@@ -44,6 +44,7 @@ export function homebrewToDndSpell(args: { entry: AddedSpell; hb: HomebrewSpell 
     name: args.hb.name,
     url: '',
     level: args.hb.level,
+    ritual: args.hb.ritual ? true : undefined,
     school: { index: args.hb.school.toLowerCase(), name: args.hb.school, url: '' },
     classes: (args.hb.classes ?? []).map((index) => ({ index, name: index, url: '' })),
     components: componentsFinal,

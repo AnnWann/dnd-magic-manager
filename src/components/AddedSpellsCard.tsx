@@ -6,6 +6,7 @@ import type {
   Character,
   ConditionKey,
   DndSpell,
+  HomebrewSpellMechanic,
   MagicCircleLevel,
   SpellEffect,
   SpellEffectMode,
@@ -27,6 +28,7 @@ import {
   apiClassLabel,
   classDisplayName,
   classLabel,
+  SCHOOL_NAME_PT,
   schoolLabel,
 } from '../lib/spellLabels'
 import { Button } from './ui/Button'
@@ -99,7 +101,7 @@ export function AddedSpellsCard(props: {
   updateCharacter: (characterId: string, updater: (c: Character) => Character) => void
   removeSpellFromActive: (spellIndex: string) => void
 }) {
-  const { abilityShort } = useI18n()
+  const { abilityShort, t } = useI18n()
 
   const {
     activeCharacter,
@@ -148,6 +150,7 @@ export function AddedSpellsCard(props: {
   const [openDetailsSpellIndex, setOpenDetailsSpellIndex] = useState<string | null>(null)
   const [openDamageInfoSpellIndex, setOpenDamageInfoSpellIndex] = useState<string | null>(null)
   const [openSourceInfoSpellIndex, setOpenSourceInfoSpellIndex] = useState<string | null>(null)
+  const [openHomebrewEditSpellIndex, setOpenHomebrewEditSpellIndex] = useState<string | null>(null)
 
   const effectTargetOptions: Array<{ value: SpellEffectTarget; label: string }> = [
     { value: 'ac', label: 'CA' },
@@ -158,6 +161,7 @@ export function AddedSpellsCard(props: {
     { value: 'ability', label: 'Atributo' },
     { value: 'condition', label: 'Condição' },
     { value: 'economy', label: 'Remover (ações)' },
+    { value: 'forcedMove', label: t('effects.forcedMove') },
     { value: 'conditionalDamage', label: 'Dano condicional' },
     { value: 'rollDice', label: 'Dado em rolagens' },
   ]
@@ -190,6 +194,7 @@ export function AddedSpellsCard(props: {
                 : 'Aplicar'
 
   const modeOptionsForTarget = (t: SpellEffectTarget): SpellEffectMode[] => {
+    if (t === 'forcedMove') return ['apply']
     if (t === 'condition') return ['apply']
     if (t === 'conditionalDamage') return ['apply']
     if (t === 'rollDice') return ['apply']
@@ -245,6 +250,26 @@ export function AddedSpellsCard(props: {
     }
 
     if (eff.mode === 'apply') {
+      if (eff.target === 'forcedMove') {
+        if (typeof eff.value !== 'number' || Number.isNaN(eff.value)) return null
+        const meters = round1(eff.value)
+        const dir = eff.forcedMoveDirection ?? 'any'
+        const ref = eff.forcedMoveReference?.trim()
+        const dirText = eff.forcedMoveDirectionText?.trim()
+
+        const suffix =
+          dir === 'away'
+            ? ` para longe de ${ref || 'X'}`
+            : dir === 'towards'
+              ? ` para perto de ${ref || 'X'}`
+              : dir === 'direction'
+                ? ` direção: ${dirText || '—'}`
+                : ''
+
+        // Keep badge short-ish.
+        return `${t('effects.forcedMove')}: ${fmt(meters)} m${suffix}`
+      }
+
       if (eff.target === 'conditionalDamage') {
         const when = eff.damageWhen?.trim() ? eff.damageWhen.trim() : undefined
         const rawDice = eff.damageDice?.trim() ? eff.damageDice.trim() : undefined
@@ -437,7 +462,7 @@ export function AddedSpellsCard(props: {
         </div>
 
         <div className="mt-3 w-full overflow-x-auto rounded-lg border border-border md:overflow-visible">
-          <table className="w-full min-w-[980px] table-auto border-collapse md:min-w-full">
+          <table className="w-full min-w-[1060px] table-auto border-collapse md:min-w-full">
             <thead className="bg-accentBg">
               <tr className="text-left text-xs text-text">
                 <th className="whitespace-nowrap p-2">Prep.</th>
@@ -445,6 +470,7 @@ export function AddedSpellsCard(props: {
                 <th className="whitespace-nowrap p-2">Nível</th>
                 <th className="p-2">Escola</th>
                 <th className="whitespace-nowrap p-2">Comp.</th>
+                <th className="whitespace-nowrap p-2">{t('spell.ritual')}</th>
                 <th className="p-2">Dano / Detalhes</th>
                 <th className="p-2">Conjurar como</th>
                 <th className="p-2">Classes (API)</th>
@@ -454,7 +480,7 @@ export function AddedSpellsCard(props: {
             <tbody>
               {filteredAddedSpells.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-sm text-text" colSpan={9}>
+                  <td className="p-3 text-sm text-text" colSpan={10}>
                     Nenhuma magia bate com os filtros.
                     <div className="text-xs text-text">{activeCharacter.spells.length} no total</div>
                   </td>
@@ -617,6 +643,7 @@ export function AddedSpellsCard(props: {
                     infoBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
                   }
                   if (meta.concentration) infoBadgeNodes.push(badge('Concentração', { kind: 'grid' }))
+                  if (detail?.ritual) infoBadgeNodes.push(badge(t('spell.ritual'), { kind: 'grid' }))
                   manualEffects.forEach((eff) => {
                     const txt = formatEffectBadge(eff, {
                       spell: detail,
@@ -746,6 +773,18 @@ export function AddedSpellsCard(props: {
                                 </div>
                               )
                             })()
+                          ) : (
+                            '…'
+                          )}
+                        </td>
+
+                        <td className="p-2 align-top text-text">
+                          {detail ? (
+                            detail.ritual ? (
+                              badge(t('spell.ritual'))
+                            ) : (
+                              <span className="text-xs text-text">—</span>
+                            )
                           ) : (
                             '…'
                           )}
@@ -1023,7 +1062,7 @@ export function AddedSpellsCard(props: {
 
                       {openDetailsSpellIndex === entry.spellIndex ? (
                         <tr className="md:hidden">
-                          <td colSpan={9} className="p-0">
+                          <td colSpan={10} className="p-0">
                             <div
                               className="fixed inset-0 z-50 bg-black/40 p-4"
                               onClick={() => setOpenDetailsSpellIndex(null)}
@@ -1098,7 +1137,7 @@ export function AddedSpellsCard(props: {
 
                       {isOpen ? (
                         <tr className="border-t border-border">
-                          <td className="p-3" colSpan={9}>
+                          <td className="p-3" colSpan={10}>
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_minmax(0,1fr)]">
                               <div>
                                 <div className="text-xs font-semibold text-textH">Nome em português</div>
@@ -1203,108 +1242,416 @@ export function AddedSpellsCard(props: {
                                   <div>
                                     {entry.homebrew ? (
                                       <div>
-                                        <div className="text-xs font-semibold text-textH">Homebrew</div>
-                                        <div className="mt-1 text-xs text-text">
-                                          Somente visualização (edite no criador de homebrew).
-                                        </div>
+                                        {(() => {
+                                          const hb = entry.homebrew
+                                          const isEditing = openHomebrewEditSpellIndex === entry.spellIndex
+                                          const mechanic = (hb.mechanic ?? 'none') as HomebrewSpellMechanic
+                                          const needsSaveAbility = mechanic === 'save' || mechanic === 'both'
+                                          const baseClasses = Array.isArray(hb.classes) ? hb.classes : []
+                                          const comps = Array.isArray(hb.components)
+                                            ? hb.components
+                                            : ([] as Array<'V' | 'S' | 'M'>)
+                                          const compSet = new Set(comps)
 
-                                        <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-border bg-bg p-3 md:grid-cols-2">
-                                          <div>
-                                            <div className="text-[11px] text-text">Nome</div>
-                                            <div className="mt-1 text-sm font-medium text-textH break-words">
-                                              {entry.homebrew.name}
-                                            </div>
-                                          </div>
+                                          const setHb = (next: typeof hb, opts?: { syncName?: boolean; syncLevel?: boolean }) => {
+                                            updateCharacter(activeCharacter.id, (c) => ({
+                                              ...c,
+                                              spells: c.spells.map((s) => {
+                                                if (s.spellIndex !== entry.spellIndex) return s
+                                                return {
+                                                  ...s,
+                                                  spellName: opts?.syncName ? next.name : s.spellName,
+                                                  castSlotLevel: opts?.syncLevel ? next.level : s.castSlotLevel,
+                                                  homebrew: next,
+                                                }
+                                              }),
+                                            }))
+                                          }
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Nível</div>
-                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.level}</div>
-                                          </div>
+                                          return (
+                                            <>
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                  <div className="text-xs font-semibold text-textH">Homebrew</div>
+                                                  <div className="mt-1 text-xs text-text">
+                                                    {isEditing ? 'Editando este homebrew.' : 'Você pode editar este homebrew aqui.'}
+                                                  </div>
+                                                </div>
+                                                <Button
+                                                  size="sm"
+                                                  variant="secondary"
+                                                  onClick={() =>
+                                                    setOpenHomebrewEditSpellIndex((prev) =>
+                                                      prev === entry.spellIndex ? null : entry.spellIndex,
+                                                    )
+                                                  }
+                                                >
+                                                  {isEditing ? 'Fechar edição' : 'Editar'}
+                                                </Button>
+                                              </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Escola</div>
-                                            <div className="mt-1 text-sm text-textH">{schoolLabel(entry.homebrew.school)}</div>
-                                          </div>
+                                              {!isEditing ? (
+                                                <>
+                                                  <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-border bg-bg p-3 md:grid-cols-2">
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Nome</div>
+                                                      <div className="mt-1 text-sm font-medium text-textH break-words">
+                                                        {hb.name}
+                                                      </div>
+                                                    </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Componentes</div>
-                                            <div className="mt-1 text-sm text-textH">
-                                              {(() => {
-                                                const comps = Array.isArray(entry.homebrew.components)
-                                                  ? entry.homebrew.components
-                                                  : ([] as Array<'V' | 'S' | 'M'>)
-                                                const base = (['V', 'S', 'M'] as const).filter((c) => comps.includes(c))
-                                                if (!base.length && !entry.homebrew.material?.trim()) return '—'
-                                                const parts: string[] = [...base]
-                                                const mat = entry.homebrew.material?.trim()
-                                                if (mat) parts.push(`M (${mat})`)
-                                                return parts.join(', ')
-                                              })()}
-                                            </div>
-                                          </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Nível</div>
+                                                      <div className="mt-1 text-sm text-textH">{hb.level}</div>
+                                                    </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Alcance</div>
-                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.range?.trim() || '—'}</div>
-                                          </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Escola</div>
+                                                      <div className="mt-1 text-sm text-textH">{schoolLabel(hb.school)}</div>
+                                                    </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Área</div>
-                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.area?.trim() || '—'}</div>
-                                          </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">{t('spell.ritual')}</div>
+                                                      <div className="mt-1 text-sm text-textH">{hb.ritual ? t('spell.ritual') : '—'}</div>
+                                                    </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Duração</div>
-                                            <div className="mt-1 text-sm text-textH">
-                                              {entry.homebrew.duration?.trim() || '—'}
-                                              {entry.homebrew.concentration ? ' (Concentração)' : ''}
-                                            </div>
-                                          </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Componentes</div>
+                                                      <div className="mt-1 text-sm text-textH">
+                                                        {(() => {
+                                                          const base = (['V', 'S', 'M'] as const).filter((c) => compSet.has(c))
+                                                          if (!base.length && !hb.material?.trim()) return '—'
+                                                          const parts: string[] = [...base]
+                                                          const mat = hb.material?.trim()
+                                                          if (mat) parts.push(`M (${mat})`)
+                                                          return parts.join(', ')
+                                                        })()}
+                                                      </div>
+                                                    </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Dano (base)</div>
-                                            <div className="mt-1 text-sm text-textH">{entry.homebrew.damageDice?.trim() || '—'}</div>
-                                          </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Alcance</div>
+                                                      <div className="mt-1 text-sm text-textH">{hb.range?.trim() || '—'}</div>
+                                                    </div>
 
-                                          <div>
-                                            <div className="text-[11px] text-text">Mecânica</div>
-                                            <div className="mt-1 text-sm text-textH">
-                                              {entry.homebrew.mechanic === 'attack'
-                                                ? 'Ataque'
-                                                : entry.homebrew.mechanic === 'save'
-                                                  ? 'Teste de resistência'
-                                                  : entry.homebrew.mechanic === 'both'
-                                                    ? 'Ataque + Teste'
-                                                    : 'Nenhuma'}
-                                              {(entry.homebrew.mechanic === 'save' || entry.homebrew.mechanic === 'both')
-                                                ? ` (${abilityShort(entry.homebrew.saveAbility ?? 'dex')})`
-                                                : ''}
-                                            </div>
-                                          </div>
-                                        </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Área</div>
+                                                      <div className="mt-1 text-sm text-textH">{hb.area?.trim() || '—'}</div>
+                                                    </div>
 
-                                        <div className="mt-3">
-                                          <div className="text-xs font-semibold text-textH">Descrição</div>
-                                          <div className="mt-2 space-y-2 text-sm text-text">
-                                            {(entry.homebrew.desc?.trim() ? [entry.homebrew.desc.trim()] : []).map((p, i) => (
-                                              <p key={i}>
-                                                <InlineMarkdown text={p} />
-                                              </p>
-                                            ))}
-                                            {!entry.homebrew.desc?.trim() ? <div className="text-xs text-text">—</div> : null}
-                                          </div>
-                                        </div>
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Duração</div>
+                                                      <div className="mt-1 text-sm text-textH">
+                                                        {hb.duration?.trim() || '—'}
+                                                        {hb.concentration ? ' (Concentração)' : ''}
+                                                      </div>
+                                                    </div>
 
-                                        {entry.homebrew.higherLevel?.trim() ? (
-                                          <div className="mt-3 rounded-lg border border-border bg-bg p-3">
-                                            <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
-                                            <div className="mt-2 space-y-2 text-sm text-text">
-                                              <p>
-                                                <InlineMarkdown text={entry.homebrew.higherLevel.trim()} />
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ) : null}
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Dano (base)</div>
+                                                      <div className="mt-1 text-sm text-textH">{hb.damageDice?.trim() || '—'}</div>
+                                                    </div>
+
+                                                    <div>
+                                                      <div className="text-[11px] text-text">Mecânica</div>
+                                                      <div className="mt-1 text-sm text-textH">
+                                                        {mechanic === 'attack'
+                                                          ? 'Ataque'
+                                                          : mechanic === 'save'
+                                                            ? 'Teste de resistência'
+                                                            : mechanic === 'both'
+                                                              ? 'Ataque + Teste'
+                                                              : 'Nenhuma'}
+                                                        {needsSaveAbility ? ` (${abilityShort(hb.saveAbility ?? 'dex')})` : ''}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="mt-3">
+                                                    <div className="text-xs font-semibold text-textH">Descrição</div>
+                                                    <div className="mt-2 space-y-2 text-sm text-text">
+                                                      {(hb.desc?.trim() ? [hb.desc.trim()] : []).map((p, i) => (
+                                                        <p key={i}>
+                                                          <InlineMarkdown text={p} />
+                                                        </p>
+                                                      ))}
+                                                      {!hb.desc?.trim() ? <div className="text-xs text-text">—</div> : null}
+                                                    </div>
+                                                  </div>
+
+                                                  {hb.higherLevel?.trim() ? (
+                                                    <div className="mt-3 rounded-lg border border-border bg-bg p-3">
+                                                      <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
+                                                      <div className="mt-2 space-y-2 text-sm text-text">
+                                                        <p>
+                                                          <InlineMarkdown text={hb.higherLevel.trim()} />
+                                                        </p>
+                                                      </div>
+                                                    </div>
+                                                  ) : null}
+                                                </>
+                                              ) : (
+                                                <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-border bg-bg p-3">
+                                                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                    <div>
+                                                      <label className="text-xs text-text">Nome</label>
+                                                      <Input
+                                                        className="mt-1"
+                                                        value={hb.name}
+                                                        onChange={(e) => {
+                                                          const name = e.target.value
+                                                          setHb({ ...hb, name }, { syncName: true })
+                                                        }}
+                                                      />
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-xs text-text">Nível</label>
+                                                      <Select
+                                                        className="mt-1"
+                                                        value={hb.level}
+                                                        onChange={(e) => {
+                                                          const level = Number(e.target.value) as MagicCircleLevel
+                                                          setHb({ ...hb, level }, { syncLevel: true })
+                                                        }}
+                                                      >
+                                                        {magicCircleOptions().map((lvl) => (
+                                                          <option key={lvl} value={lvl}>
+                                                            {lvl}
+                                                          </option>
+                                                        ))}
+                                                      </Select>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                    <div>
+                                                      <label className="text-xs text-text">Escola</label>
+                                                      <Select
+                                                        className="mt-1"
+                                                        value={hb.school}
+                                                        onChange={(e) => setHb({ ...hb, school: e.target.value })}
+                                                      >
+                                                        {Object.keys(SCHOOL_NAME_PT)
+                                                          .sort((a, b) => schoolLabel(a).localeCompare(schoolLabel(b), 'pt-BR'))
+                                                          .map((k) => (
+                                                            <option key={k} value={k}>
+                                                              {schoolLabel(k)}
+                                                            </option>
+                                                          ))}
+                                                      </Select>
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-xs text-text">{t('spell.ritual')}</label>
+                                                      <div className="mt-2 flex items-center gap-2">
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={Boolean(hb.ritual)}
+                                                          onChange={(e) => setHb({ ...hb, ritual: e.target.checked || undefined })}
+                                                        />
+                                                        <span className="text-xs text-text">Pode ser conjurada como ritual</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                                                    <div>
+                                                      <label className="text-xs text-text">Alcance</label>
+                                                      <Input
+                                                        className="mt-1"
+                                                        value={hb.range ?? ''}
+                                                        onChange={(e) => setHb({ ...hb, range: e.target.value || undefined })}
+                                                        placeholder="ex: 18 m / Toque / Pessoal"
+                                                      />
+                                                    </div>
+                                                    <div>
+                                                      <label className="text-xs text-text">Área</label>
+                                                      <Input
+                                                        className="mt-1"
+                                                        value={hb.area ?? ''}
+                                                        onChange={(e) => setHb({ ...hb, area: e.target.value || undefined })}
+                                                        placeholder="ex: Cone 4,5 m"
+                                                      />
+                                                    </div>
+                                                    <div>
+                                                      <label className="text-xs text-text">Duração</label>
+                                                      <Input
+                                                        className="mt-1"
+                                                        value={hb.duration ?? ''}
+                                                        onChange={(e) => setHb({ ...hb, duration: e.target.value || undefined })}
+                                                        placeholder="ex: 1 minuto"
+                                                      />
+                                                      <div className="mt-2 flex items-center gap-2">
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={Boolean(hb.concentration)}
+                                                          onChange={(e) => setHb({ ...hb, concentration: e.target.checked || undefined })}
+                                                        />
+                                                        <span className="text-xs text-text">Concentração</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+
+                                                  <div>
+                                                    <label className="text-xs text-text">Componentes</label>
+                                                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                                                      {(['V', 'S', 'M'] as const).map((comp) => {
+                                                        const checked = compSet.has(comp)
+                                                        return (
+                                                          <label key={comp} className="flex items-center gap-2 text-xs text-text">
+                                                            <input
+                                                              type="checkbox"
+                                                              checked={checked}
+                                                              onChange={(e) => {
+                                                                const nextChecked = e.target.checked
+                                                                const nextSet = new Set(compSet)
+                                                                if (nextChecked) nextSet.add(comp)
+                                                                else nextSet.delete(comp)
+                                                                const components = Array.from(nextSet) as Array<'V' | 'S' | 'M'>
+                                                                const material =
+                                                                  components.includes('M') ? hb.material : undefined
+                                                                setHb({ ...hb, components: components.length ? components : undefined, material })
+                                                              }}
+                                                            />
+                                                            <span>{comp}</span>
+                                                          </label>
+                                                        )
+                                                      })}
+                                                    </div>
+
+                                                    {(hb.components ?? []).includes('M') ? (
+                                                      <div className="mt-2">
+                                                        <Input
+                                                          className="mt-1"
+                                                          value={hb.material ?? ''}
+                                                          onChange={(e) => setHb({ ...hb, material: e.target.value || undefined })}
+                                                          placeholder="Material (opcional)"
+                                                        />
+                                                      </div>
+                                                    ) : null}
+                                                  </div>
+
+                                                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                    <div>
+                                                      <label className="text-xs text-text">Dano (base)</label>
+                                                      <Input
+                                                        className="mt-1"
+                                                        value={hb.damageDice ?? ''}
+                                                        onChange={(e) => setHb({ ...hb, damageDice: e.target.value || undefined })}
+                                                        placeholder="ex: 2d6+3"
+                                                      />
+                                                    </div>
+                                                    <div>
+                                                      <label className="text-xs text-text">Mecânica</label>
+                                                      <Select
+                                                        className="mt-1"
+                                                        value={mechanic}
+                                                        onChange={(e) => {
+                                                          const nextMechanic = e.target.value as HomebrewSpellMechanic
+                                                          setHb({
+                                                            ...hb,
+                                                            mechanic: nextMechanic,
+                                                            saveAbility:
+                                                              nextMechanic === 'save' || nextMechanic === 'both'
+                                                                ? (hb.saveAbility ?? 'dex')
+                                                                : undefined,
+                                                          })
+                                                        }}
+                                                      >
+                                                        <option value="none">Nenhuma</option>
+                                                        <option value="attack">Ataque</option>
+                                                        <option value="save">Teste de resistência</option>
+                                                        <option value="both">Ataque + Teste</option>
+                                                      </Select>
+
+                                                      {needsSaveAbility ? (
+                                                        <div className="mt-2">
+                                                          <label className="text-xs text-text">Resistência (atributo)</label>
+                                                          <Select
+                                                            className="mt-1"
+                                                            value={hb.saveAbility ?? 'dex'}
+                                                            onChange={(e) =>
+                                                              setHb({ ...hb, saveAbility: e.target.value as Ability })
+                                                            }
+                                                          >
+                                                            {ABILITY_KEYS.map((key) => (
+                                                              <option key={key} value={key}>
+                                                                {abilityShort(key)}
+                                                              </option>
+                                                            ))}
+                                                          </Select>
+                                                        </div>
+                                                      ) : null}
+                                                    </div>
+                                                  </div>
+
+                                                  <div>
+                                                    <label className="text-xs text-text">Classes base</label>
+                                                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                                                      {(
+                                                        [
+                                                          'artificer',
+                                                          'barbarian',
+                                                          'bard',
+                                                          'cleric',
+                                                          'druid',
+                                                          'fighter',
+                                                          'monk',
+                                                          'paladin',
+                                                          'ranger',
+                                                          'rogue',
+                                                          'sorcerer',
+                                                          'warlock',
+                                                          'wizard',
+                                                        ] as const
+                                                      ).map((idx) => {
+                                                        const checked = baseClasses.includes(idx)
+                                                        const label = apiClassLabel({ index: idx, name: idx, url: '' })
+                                                        return (
+                                                          <label key={idx} className="flex items-center gap-2 text-xs text-text">
+                                                            <input
+                                                              type="checkbox"
+                                                              checked={checked}
+                                                              onChange={(e) => {
+                                                                const set = new Set(baseClasses)
+                                                                if (e.target.checked) set.add(idx)
+                                                                else set.delete(idx)
+                                                                const classes = Array.from(set).sort()
+                                                                setHb({ ...hb, classes: classes.length ? classes : undefined })
+                                                              }}
+                                                            />
+                                                            <span>{label}</span>
+                                                          </label>
+                                                        )
+                                                      })}
+                                                    </div>
+                                                  </div>
+
+                                                  <div>
+                                                    <label className="text-xs text-text">Descrição</label>
+                                                    <Textarea
+                                                      className="mt-1"
+                                                      value={hb.desc ?? ''}
+                                                      onChange={(e) => setHb({ ...hb, desc: e.target.value || undefined })}
+                                                      placeholder="Opcional. Texto livre."
+                                                    />
+                                                  </div>
+
+                                                  <div>
+                                                    <label className="text-xs text-text">Em níveis superiores</label>
+                                                    <Textarea
+                                                      className="mt-1"
+                                                      value={hb.higherLevel ?? ''}
+                                                      onChange={(e) => setHb({ ...hb, higherLevel: e.target.value || undefined })}
+                                                      placeholder="Opcional."
+                                                    />
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </>
+                                          )
+                                        })()}
                                       </div>
                                     ) : (
                                       <div>
@@ -1417,17 +1764,12 @@ export function AddedSpellsCard(props: {
                                             const needsEconomy = target === 'economy'
                                             const needsConditionalDamage = target === 'conditionalDamage'
                                             const needsRollDice = target === 'rollDice'
-
-                                            const gridColsMd = needsConditionalDamage || needsRollDice
-                                              ? 'md:grid-cols-[170px_140px_1fr_1fr_96px]'
-                                              : needsAbility || needsCondition || needsEconomy
-                                                ? 'md:grid-cols-[170px_140px_160px_1fr_96px]'
-                                                : 'md:grid-cols-[170px_140px_1fr_96px]'
+                                            const needsForcedMove = target === 'forcedMove'
 
                                             return (
                                               <div
                                                 key={idx}
-                                                className={`grid grid-cols-1 gap-2 rounded-lg border border-border p-2 ${gridColsMd}`}
+                                                className="flex flex-col gap-2 rounded-lg border border-border p-2"
                                               >
                                                 <div>
                                                   <label className="text-[11px] text-text">Afeta</label>
@@ -1460,7 +1802,7 @@ export function AddedSpellsCard(props: {
                                                               nextTarget === 'attack' || nextTarget === 'save' || nextTarget === 'ability'
                                                                 ? (prev.ability ?? 'cha')
                                                                 : undefined,
-                                                            unit: nextTarget === 'speed' ? 'm' : undefined,
+                                                            unit: nextTarget === 'speed' || nextTarget === 'forcedMove' ? 'm' : undefined,
                                                             condition:
                                                               nextTarget === 'condition'
                                                                 ? (prev.condition ?? 'blinded')
@@ -1482,9 +1824,23 @@ export function AddedSpellsCard(props: {
                                                               nextTarget === 'rollDice'
                                                                 ? (prev.rollAppliesTo ?? ['attack'])
                                                                 : undefined,
+                                                            forcedMoveDirection:
+                                                              nextTarget === 'forcedMove'
+                                                                ? (prev.forcedMoveDirection ?? 'any')
+                                                                : undefined,
+                                                            forcedMoveReference:
+                                                              nextTarget === 'forcedMove'
+                                                                ? (prev.forcedMoveReference ?? '')
+                                                                : undefined,
+                                                            forcedMoveDirectionText:
+                                                              nextTarget === 'forcedMove'
+                                                                ? (prev.forcedMoveDirectionText ?? '')
+                                                                : undefined,
                                                             value:
                                                               nextTarget === 'condition' || nextTarget === 'economy' || nextMode === 'adv' || nextMode === 'dis' || nextMode === 'apply' || nextMode === 'remove'
-                                                                ? undefined
+                                                                ? (nextTarget === 'forcedMove'
+                                                                    ? (typeof prev.value === 'number' ? prev.value : 3)
+                                                                    : undefined)
                                                                 : nextTarget === 'speed'
                                                                   ? prevSpeedValueMeters ?? prev.value
                                                                   : prev.value,
@@ -1515,7 +1871,10 @@ export function AddedSpellsCard(props: {
                                                           if (s.spellIndex !== entry.spellIndex) return s
                                                           const effects = [...(s.effects ?? [])]
                                                           const next = { ...effects[idx], mode }
-                                                          if (mode === 'adv' || mode === 'dis' || mode === 'apply' || mode === 'remove') {
+                                                          if (mode === 'adv' || mode === 'dis' || mode === 'remove') {
+                                                            next.value = undefined
+                                                          }
+                                                          if (mode === 'apply' && next.target !== 'forcedMove') {
                                                             next.value = undefined
                                                           }
                                                           effects[idx] = next
@@ -1531,6 +1890,151 @@ export function AddedSpellsCard(props: {
                                                     ))}
                                                   </Select>
                                                 </div>
+
+                                                {needsForcedMove ? (
+                                                  <>
+                                                    <div>
+                                                      <div className="flex flex-col gap-2">
+                                                        <div>
+                                                          <label className="text-[11px] text-text">{t('effects.forcedMove.direction')}</label>
+                                                          <Select
+                                                            className="mt-1 h-9"
+                                                            value={eff.forcedMoveDirection ?? 'any'}
+                                                            onChange={(e) => {
+                                                              const forcedMoveDirection = e.target.value as NonNullable<SpellEffect['forcedMoveDirection']>
+                                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                                ...c,
+                                                                spells: c.spells.map((s) => {
+                                                                  if (s.spellIndex !== entry.spellIndex) return s
+                                                                  const effects = [...(s.effects ?? [])]
+                                                                  effects[idx] = { ...effects[idx], forcedMoveDirection }
+                                                                  return { ...s, effects }
+                                                                }),
+                                                              }))
+                                                            }}
+                                                          >
+                                                            <option value="any">{t('effects.forcedMove.direction.any')}</option>
+                                                            <option value="towards">{t('effects.forcedMove.direction.towards')}</option>
+                                                            <option value="away">{t('effects.forcedMove.direction.away')}</option>
+                                                            <option value="direction">{t('effects.forcedMove.direction.direction')}</option>
+                                                          </Select>
+                                                        </div>
+
+                                                        <div>
+                                                          <label className="text-[11px] text-text">{t('effects.forcedMove.distance')}</label>
+                                                          <div className="mt-1 flex items-center gap-2">
+                                                            <Button
+                                                              type="button"
+                                                              size="sm"
+                                                              variant="secondary"
+                                                              className="h-9 w-9 px-0"
+                                                              title="Diminuir"
+                                                              onClick={() => {
+                                                                const current = typeof eff.value === 'number' && Number.isFinite(eff.value) ? eff.value : 0
+                                                                const next = Math.max(0, Math.round((current - 0.5) * 10) / 10)
+                                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                                  ...c,
+                                                                  spells: c.spells.map((s) => {
+                                                                    if (s.spellIndex !== entry.spellIndex) return s
+                                                                    const effects = [...(s.effects ?? [])]
+                                                                    effects[idx] = { ...effects[idx], value: next, unit: 'm' }
+                                                                    return { ...s, effects }
+                                                                  }),
+                                                                }))
+                                                              }}
+                                                            >
+                                                              −
+                                                            </Button>
+
+                                                            <Input
+                                                              className="h-9"
+                                                              type="number"
+                                                              inputMode="decimal"
+                                                              value={typeof eff.value === 'number' ? String(eff.value) : ''}
+                                                              onFocus={(e) => e.currentTarget.select()}
+                                                              onChange={(e) => {
+                                                                const raw = e.target.value
+                                                                const value = raw === '' ? undefined : Number(raw)
+                                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                                  ...c,
+                                                                  spells: c.spells.map((s) => {
+                                                                    if (s.spellIndex !== entry.spellIndex) return s
+                                                                    const effects = [...(s.effects ?? [])]
+                                                                    effects[idx] = { ...effects[idx], value, unit: 'm' }
+                                                                    return { ...s, effects }
+                                                                  }),
+                                                                }))
+                                                              }}
+                                                              min={0}
+                                                              step={0.5}
+                                                              placeholder="ex: 3"
+                                                            />
+
+                                                            <Button
+                                                              type="button"
+                                                              size="sm"
+                                                              variant="secondary"
+                                                              className="h-9 w-9 px-0"
+                                                              title="Aumentar"
+                                                              onClick={() => {
+                                                                const current = typeof eff.value === 'number' && Number.isFinite(eff.value) ? eff.value : 0
+                                                                const next = Math.max(0, Math.round((current + 0.5) * 10) / 10)
+                                                                updateCharacter(activeCharacter.id, (c) => ({
+                                                                  ...c,
+                                                                  spells: c.spells.map((s) => {
+                                                                    if (s.spellIndex !== entry.spellIndex) return s
+                                                                    const effects = [...(s.effects ?? [])]
+                                                                    effects[idx] = { ...effects[idx], value: next, unit: 'm' }
+                                                                    return { ...s, effects }
+                                                                  }),
+                                                                }))
+                                                              }}
+                                                            >
+                                                              +
+                                                            </Button>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-[11px] text-text">
+                                                        {(eff.forcedMoveDirection ?? 'any') === 'direction'
+                                                          ? t('effects.forcedMove.directionText')
+                                                          : t('effects.forcedMove.reference')}
+                                                      </label>
+                                                      <Input
+                                                        className="mt-1 h-9"
+                                                        disabled={(eff.forcedMoveDirection ?? 'any') === 'any'}
+                                                        value={
+                                                          (eff.forcedMoveDirection ?? 'any') === 'direction'
+                                                            ? (eff.forcedMoveDirectionText ?? '')
+                                                            : (eff.forcedMoveReference ?? '')
+                                                        }
+                                                        onChange={(e) => {
+                                                          const v = e.target.value
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] =
+                                                                (eff.forcedMoveDirection ?? 'any') === 'direction'
+                                                                  ? { ...effects[idx], forcedMoveDirectionText: v }
+                                                                  : { ...effects[idx], forcedMoveReference: v }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        placeholder={
+                                                          (eff.forcedMoveDirection ?? 'any') === 'direction'
+                                                            ? t('effects.forcedMove.directionText.placeholder')
+                                                            : t('effects.forcedMove.reference.placeholder')
+                                                        }
+                                                      />
+                                                    </div>
+                                                  </>
+                                                ) : null}
 
                                                 {needsAbility || needsCondition || needsEconomy ? (
                                                   <div>
@@ -1574,16 +2078,16 @@ export function AddedSpellsCard(props: {
                                                             </>
                                                           )
                                                         : needsCondition
-                                                        ? conditionOptions.map((c) => (
-                                                            <option key={c.value} value={c.value}>
-                                                              {c.label}
-                                                            </option>
-                                                          ))
-                                                        : ABILITY_KEYS.map((a) => (
-                                                            <option key={a} value={a}>
-                                                              {abilityShort(a)}
-                                                            </option>
-                                                          ))}
+                                                          ? conditionOptions.map((c) => (
+                                                              <option key={c.value} value={c.value}>
+                                                                {c.label}
+                                                              </option>
+                                                            ))
+                                                          : ABILITY_KEYS.map((a) => (
+                                                              <option key={a} value={a}>
+                                                                {abilityShort(a)}
+                                                              </option>
+                                                            ))}
                                                     </Select>
                                                   </div>
                                                 ) : null}
@@ -1726,45 +2230,127 @@ export function AddedSpellsCard(props: {
                                                       />
                                                     </div>
                                                   </>
-                                                ) : (
+                                                ) : needsForcedMove ? null : (
                                                   <div>
                                                     <label className="text-[11px] text-text">{target === 'speed' ? 'Valor (m)' : 'Valor'}</label>
-                                                    <Input
-                                                      className="mt-1 h-9"
-                                                      type="number"
-                                                      disabled={!needsValue}
-                                                      value={(() => {
-                                                        if (!needsValue) return ''
-                                                        if (target !== 'speed') return String(eff.value ?? '')
-                                                        if (typeof eff.value !== 'number') return ''
-                                                        const unit = eff.unit ?? 'ft'
-                                                        const meters = unit === 'm' ? eff.value : eff.value * 0.3
-                                                        const rounded = Math.round(meters * 10) / 10
-                                                        return String(rounded)
-                                                      })()}
-                                                      onChange={(e) => {
-                                                        const raw = e.target.value
-                                                        const value = raw === '' ? undefined : Number(raw)
-                                                        updateCharacter(activeCharacter.id, (c) => ({
-                                                          ...c,
-                                                          spells: c.spells.map((s) => {
-                                                            if (s.spellIndex !== entry.spellIndex) return s
-                                                            const effects = [...(s.effects ?? [])]
-                                                            effects[idx] = {
-                                                              ...effects[idx],
-                                                              value,
-                                                              unit: target === 'speed' ? 'm' : effects[idx]?.unit,
+                                                    <div className="mt-1 flex items-center gap-2">
+                                                      <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        className="h-9 w-9 px-0"
+                                                        title="Diminuir"
+                                                        disabled={!needsValue}
+                                                        onClick={() => {
+                                                          if (!needsValue) return
+
+                                                          const current = (() => {
+                                                            if (target !== 'speed') {
+                                                              return typeof eff.value === 'number' && Number.isFinite(eff.value) ? eff.value : 0
                                                             }
-                                                            return { ...s, effects }
-                                                          }),
-                                                        }))
-                                                      }}
-                                                      placeholder={needsValue ? 'ex: 2' : '—'}
-                                                    />
+                                                            if (typeof eff.value !== 'number' || !Number.isFinite(eff.value)) return 0
+                                                            const unit = eff.unit ?? 'ft'
+                                                            const meters = unit === 'm' ? eff.value : eff.value * 0.3
+                                                            return Math.round(meters * 10) / 10
+                                                          })()
+
+                                                          const next = Math.round((current - 1) * 10) / 10
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = {
+                                                                ...effects[idx],
+                                                                value: next,
+                                                                unit: target === 'speed' ? 'm' : effects[idx]?.unit,
+                                                              }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                      >
+                                                        −
+                                                      </Button>
+
+                                                      <Input
+                                                        className="h-9"
+                                                        type="number"
+                                                        inputMode="decimal"
+                                                        disabled={!needsValue}
+                                                        value={(() => {
+                                                          if (!needsValue) return ''
+                                                          if (target !== 'speed') return String(eff.value ?? '')
+                                                          if (typeof eff.value !== 'number') return ''
+                                                          const unit = eff.unit ?? 'ft'
+                                                          const meters = unit === 'm' ? eff.value : eff.value * 0.3
+                                                          const rounded = Math.round(meters * 10) / 10
+                                                          return String(rounded)
+                                                        })()}
+                                                        onFocus={(e) => e.currentTarget.select()}
+                                                        onChange={(e) => {
+                                                          const raw = e.target.value
+                                                          const value = raw === '' ? undefined : Number(raw)
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = {
+                                                                ...effects[idx],
+                                                                value,
+                                                                unit: target === 'speed' ? 'm' : effects[idx]?.unit,
+                                                              }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        placeholder={needsValue ? 'ex: 2' : '—'}
+                                                      />
+
+                                                      <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        className="h-9 w-9 px-0"
+                                                        title="Aumentar"
+                                                        disabled={!needsValue}
+                                                        onClick={() => {
+                                                          if (!needsValue) return
+
+                                                          const current = (() => {
+                                                            if (target !== 'speed') {
+                                                              return typeof eff.value === 'number' && Number.isFinite(eff.value) ? eff.value : 0
+                                                            }
+                                                            if (typeof eff.value !== 'number' || !Number.isFinite(eff.value)) return 0
+                                                            const unit = eff.unit ?? 'ft'
+                                                            const meters = unit === 'm' ? eff.value : eff.value * 0.3
+                                                            return Math.round(meters * 10) / 10
+                                                          })()
+
+                                                          const next = Math.round((current + 1) * 10) / 10
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = {
+                                                                ...effects[idx],
+                                                                value: next,
+                                                                unit: target === 'speed' ? 'm' : effects[idx]?.unit,
+                                                              }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                      >
+                                                        +
+                                                      </Button>
+                                                    </div>
                                                   </div>
                                                 )}
 
-                                                <div className="flex items-end justify-end">
+                                                <div className="flex justify-end">
                                                   <Button
                                                     size="sm"
                                                     variant="secondary"

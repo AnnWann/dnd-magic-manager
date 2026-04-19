@@ -144,6 +144,7 @@ function App() {
   const [hbCastTimeKind, setHbCastTimeKind] = useState<SpellCastTimeKind>('action')
   const [hbReactionWhen, setHbReactionWhen] = useState('')
   const [hbConcentration, setHbConcentration] = useState(false)
+  const [hbRitual, setHbRitual] = useState(false)
 
   const [hbComponents, setHbComponents] = useState<Array<'V' | 'S' | 'M'>>([])
   const [hbMaterial, setHbMaterial] = useState('')
@@ -622,6 +623,7 @@ function App() {
       name,
       level: hbLevel,
       school: hbSchool,
+      ritual: hbRitual || undefined,
       classes: hbBaseClasses.length ? hbBaseClasses : undefined,
       components: components.length ? components : undefined,
       material: components.includes('M') ? (materialTrimmed || undefined) : undefined,
@@ -687,6 +689,7 @@ function App() {
     setHbCastTimeKind('action')
     setHbReactionWhen('')
     setHbConcentration(false)
+    setHbRitual(false)
 
     setHbBaseClasses([])
 
@@ -1268,6 +1271,18 @@ function App() {
                           onChange={(e) => setHbConcentration(e.target.checked)}
                         />
                         <span className="text-xs text-text">Exige concentração</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-text">Ritual</label>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={hbRitual}
+                          onChange={(e) => setHbRitual(e.target.checked)}
+                        />
+                        <span className="text-xs text-text">Pode ser conjurada como ritual</span>
                       </div>
                     </div>
                   </div>
