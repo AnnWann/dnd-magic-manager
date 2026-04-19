@@ -8,6 +8,7 @@ import type {
   DndSpell,
   HomebrewSpellMechanic,
   MagicCircleLevel,
+  RestResetKind,
   SpellEffect,
   SpellEffectMode,
   SpellEffectTarget,
@@ -533,7 +534,19 @@ export function AddedSpellsCard(props: {
                                 onClick={() => {
                                   updateCharacter(activeCharacter.id, (c) => {
                                     const prev = c.slotUsage ?? {}
-                                    return { ...c, slotUsage: { ...prev, pactUsed: 0 } }
+                                    const nextSpells = c.spells.map((s) => {
+                                      const fu = s.freeUses
+                                      if (!fu) return s
+                                      const reset = (fu.reset ?? 'longRest') as RestResetKind
+                                      if (reset !== 'shortRest') return s
+                                      const used =
+                                        typeof fu.used === 'number' && Number.isFinite(fu.used)
+                                          ? Math.max(0, Math.trunc(fu.used))
+                                          : 0
+                                      if (used === 0) return s
+                                      return { ...s, freeUses: { ...fu, used: 0 } }
+                                    })
+                                    return { ...c, spells: nextSpells, slotUsage: { ...prev, pactUsed: 0 } }
                                   })
                                 }}
                               >
@@ -554,7 +567,23 @@ export function AddedSpellsCard(props: {
                     onClick={() => {
                       updateCharacter(activeCharacter.id, (c) => {
                         const prev = c.slotUsage ?? {}
-                        return { ...c, slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] } }
+                        const nextSpells = c.spells.map((s) => {
+                          const fu = s.freeUses
+                          if (!fu) return s
+                          const reset = (fu.reset ?? 'longRest') as RestResetKind
+                          if (reset !== 'longRest') return s
+                          const used =
+                            typeof fu.used === 'number' && Number.isFinite(fu.used)
+                              ? Math.max(0, Math.trunc(fu.used))
+                              : 0
+                          if (used === 0) return s
+                          return { ...s, freeUses: { ...fu, used: 0 } }
+                        })
+                        return {
+                          ...c,
+                          spells: nextSpells,
+                          slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+                        }
                       })
                     }}
                   >
@@ -811,6 +840,22 @@ export function AddedSpellsCard(props: {
 
                   const manualEffects = entry.effects ?? []
 
+                  const freeUsesMax = (() => {
+                    const m = entry.freeUses?.max
+                    if (typeof m !== 'number' || !Number.isFinite(m)) return 0
+                    return Math.max(0, Math.trunc(m))
+                  })()
+                  const freeUsesReset: RestResetKind = (entry.freeUses?.reset ?? 'longRest') as RestResetKind
+                  const freeUsesUsed = (() => {
+                    const u = entry.freeUses?.used
+                    if (typeof u !== 'number' || !Number.isFinite(u)) return 0
+                    return Math.max(0, Math.trunc(u))
+                  })()
+                  const freeUsesRemaining =
+                    freeUsesMax > 0
+                      ? Math.max(0, freeUsesMax - Math.min(freeUsesUsed, freeUsesMax))
+                      : 0
+
                   const combatBadgeNodes: ReactNode[] = []
                   if (usesAttack && atkSpell !== null) combatBadgeNodes.push(badge(`ATQ\u00A0${formatSigned(atkSpell)}`, { kind: 'grid' }))
                   if (usesSave && dcSpell !== null) combatBadgeNodes.push(badge(`CD\u00A0${dcSpell}`, { kind: 'grid' }))
@@ -859,6 +904,13 @@ export function AddedSpellsCard(props: {
                       infoBadgeNodes.push(badge(nb, { kind: 'grid', title: txt }))
                     }
                   })
+
+                  if (freeUsesMax > 0) {
+                    const resetLabel = freeUsesReset === 'shortRest' ? 'curto' : 'longo'
+                    const t = `Conjurações grátis: ${freeUsesRemaining}/${freeUsesMax} (descanso ${resetLabel})`
+                    const nb = `Grátis ${freeUsesRemaining}/${freeUsesMax}`.split(' ').join('\u00A0')
+                    infoBadgeNodes.push(badge(nb, { kind: 'grid', title: t }))
+                  }
 
                   const slotOptions: MagicCircleLevel[] =
                     spellBaseLevel === 0
@@ -2857,6 +2909,132 @@ export function AddedSpellsCard(props: {
                                         >
                                           Adicionar modificador
                                         </Button>
+                                      </div>
+
+                                      <div className="mt-4 border-t border-border pt-3">
+                                        <div className="text-xs font-semibold text-textH">Conjurações grátis</div>
+                                        <div className="mt-1 text-xs text-text">Usos que não gastam slot (ex: Fey Touched).</div>
+
+                                        {(() => {
+                                          const fu = entry.freeUses
+                                          const max =
+                                            typeof fu?.max === 'number' && Number.isFinite(fu.max)
+                                              ? Math.max(0, Math.trunc(fu.max))
+                                              : 0
+                                          const reset: RestResetKind = (fu?.reset ?? 'longRest') as RestResetKind
+                                          const usedRaw =
+                                            typeof fu?.used === 'number' && Number.isFinite(fu.used)
+                                              ? Math.max(0, Math.trunc(fu.used))
+                                              : 0
+                                          const used = max > 0 ? Math.min(usedRaw, max) : 0
+                                          const remaining = max > 0 ? Math.max(0, max - used) : 0
+
+                                          const setFreeUses = (next: { max: number; used?: number; reset?: RestResetKind } | undefined) => {
+                                            updateCharacter(activeCharacter.id, (c) => ({
+                                              ...c,
+                                              spells: c.spells.map((s) =>
+                                                s.spellIndex === entry.spellIndex ? { ...s, freeUses: next } : s,
+                                              ),
+                                            }))
+                                          }
+
+                                          return (
+                                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                                              <div>
+                                                <label className="text-[11px] text-text">Qtd. (máx.)</label>
+                                                <Input
+                                                  className="mt-1 h-9"
+                                                  type="number"
+                                                  inputMode="numeric"
+                                                  min={0}
+                                                  step={1}
+                                                  value={String(max)}
+                                                  onFocus={(e) => e.currentTarget.select()}
+                                                  onChange={(e) => {
+                                                    const raw = e.target.value
+                                                    const nextMax = raw === '' ? 0 : Math.max(0, Math.trunc(Number(raw)))
+                                                    if (!Number.isFinite(nextMax) || nextMax <= 0) {
+                                                      setFreeUses(undefined)
+                                                      return
+                                                    }
+                                                    const nextUsed = Math.min(used, nextMax)
+                                                    setFreeUses({ max: nextMax, used: nextUsed, reset })
+                                                  }}
+                                                />
+                                              </div>
+
+                                              <div>
+                                                <label className="text-[11px] text-text">Reset</label>
+                                                <Select
+                                                  className="mt-1 h-9"
+                                                  value={reset}
+                                                  disabled={max <= 0}
+                                                  onChange={(e) => {
+                                                    const nextReset = e.target.value as RestResetKind
+                                                    if (max <= 0) return
+                                                    setFreeUses({ max, used, reset: nextReset })
+                                                  }}
+                                                >
+                                                  <option value="longRest">Descanso longo</option>
+                                                  <option value="shortRest">Descanso curto</option>
+                                                </Select>
+                                              </div>
+
+                                              <div>
+                                                <label className="text-[11px] text-text">Restante</label>
+                                                <div className="mt-1 flex items-center gap-2">
+                                                  <Input
+                                                    readOnly
+                                                    className="h-9 !w-auto flex-1 min-w-0"
+                                                    value={max > 0 ? `${remaining}/${max}` : '—'}
+                                                  />
+
+                                                  <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="h-9 w-9 px-0"
+                                                    title="Recuperar 1"
+                                                    disabled={max <= 0 || used <= 0}
+                                                    onClick={() => {
+                                                      if (max <= 0) return
+                                                      setFreeUses({ max, used: Math.max(0, used - 1), reset })
+                                                    }}
+                                                  >
+                                                    +
+                                                  </Button>
+
+                                                  <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="h-9 w-9 px-0"
+                                                    title="Gastar 1"
+                                                    disabled={max <= 0 || remaining <= 0}
+                                                    onClick={() => {
+                                                      if (max <= 0) return
+                                                      setFreeUses({ max, used: used + 1, reset })
+                                                    }}
+                                                  >
+                                                    −
+                                                  </Button>
+
+                                                  <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="h-9 px-2"
+                                                    title="Reset"
+                                                    disabled={max <= 0 || used === 0}
+                                                    onClick={() => {
+                                                      if (max <= 0) return
+                                                      setFreeUses({ max, used: 0, reset })
+                                                    }}
+                                                  >
+                                                    Reset
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )
+                                        })()}
                                       </div>
                                     </div>
                                   </div>

@@ -143,6 +143,17 @@ export interface SpellSlotUsage {
   pactUsed?: number
 }
 
+export type RestResetKind = 'longRest' | 'shortRest'
+
+export interface SpellFreeUses {
+  /** Total free uses available before a reset (e.g. 1/day). */
+  max: number
+  /** How many of those free uses have already been spent. */
+  used?: number
+  /** When these uses reset. Defaults to 'longRest'. */
+  reset?: RestResetKind
+}
+
 export interface AddedSpell {
   spellIndex: string
   spellName: string
@@ -189,6 +200,9 @@ export interface AddedSpell {
   /** Optional: cached translation of the official API description (PT-BR) */
   officialDescPt?: string[]
   officialHigherLevelPt?: string[]
+
+  /** Optional: free casts/uses for this specific spell (e.g. Fey Touched). */
+  freeUses?: SpellFreeUses
 
   /** Optional: homebrew spell definition (when spellIndex starts with "hb:") */
   homebrew?: HomebrewSpell
