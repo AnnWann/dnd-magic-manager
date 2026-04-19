@@ -2,6 +2,7 @@ import { Fragment, useState, type Dispatch, type ReactNode, type SetStateAction 
 import type {
   Ability,
   AddedSpell,
+  ActionEconomyKey,
   Character,
   ConditionKey,
   DndSpell,
@@ -157,6 +158,7 @@ export function AddedSpellsCard(props: {
     { value: 'save', label: 'Teste de resistência' },
     { value: 'ability', label: 'Atributo' },
     { value: 'condition', label: 'Condição' },
+    { value: 'economy', label: 'Remover (ações)' },
   ]
 
   const conditionOptions: Array<{ value: ConditionKey; label: string }> = [
@@ -182,10 +184,13 @@ export function AddedSpellsCard(props: {
             ? 'Vantagem'
             : m === 'dis'
               ? 'Desvantagem'
-              : 'Aplicar'
+              : m === 'remove'
+                ? 'Remover'
+                : 'Aplicar'
 
   const modeOptionsForTarget = (t: SpellEffectTarget): SpellEffectMode[] => {
     if (t === 'condition') return ['apply']
+    if (t === 'economy') return ['remove']
     if (t === 'ability') return ['add', 'sub', 'set']
     if (t === 'ac' || t === 'speed' || t === 'initiative') return ['add', 'sub', 'set']
     return ['add', 'sub', 'set', 'adv', 'dis']
@@ -195,6 +200,14 @@ export function AddedSpellsCard(props: {
 
   const conditionLabel = (c: ConditionKey) =>
     conditionOptions.find((x) => x.value === c)?.label ?? c
+
+  const economyLabel = (k: ActionEconomyKey): string => {
+    if (k === 'action') return 'Ação'
+    if (k === 'bonusAction') return 'Ação bônus'
+    if (k === 'reaction') return 'Reação'
+    if (k === 'movement') return 'Movimento'
+    return 'Turno'
+  }
 
   const formatEffectBadge = (eff: SpellEffect): string | null => {
     const round1 = (n: number) => Math.round(n * 10) / 10
@@ -207,6 +220,12 @@ export function AddedSpellsCard(props: {
     const delta = (n: number) => (eff.mode === 'sub' ? -Math.abs(n) : n)
     const needsAbility = eff.target === 'attack' || eff.target === 'save' || eff.target === 'ability'
     const abilitySuffix = needsAbility && eff.ability ? ` ${abilityLabel(eff.ability)}` : ''
+
+    if (eff.mode === 'remove') {
+      if (eff.target !== 'economy') return null
+      if (!eff.economy) return null
+      return `Remove: ${economyLabel(eff.economy)}`
+    }
 
     if (eff.mode === 'apply') {
       if (eff.target !== 'condition') return null
@@ -1488,8 +1507,9 @@ export function AddedSpellsCard(props: {
                                             const needsAbility =
                                               target === 'attack' || target === 'save' || target === 'ability'
                                             const needsCondition = target === 'condition'
+                                            const needsEconomy = target === 'economy'
 
-                                            const gridColsMd = needsAbility || needsCondition
+                                            const gridColsMd = needsAbility || needsCondition || needsEconomy
                                               ? 'md:grid-cols-[170px_140px_160px_1fr_96px]'
                                               : 'md:grid-cols-[170px_140px_1fr_96px]'
 
@@ -1534,8 +1554,9 @@ export function AddedSpellsCard(props: {
                                                               nextTarget === 'condition'
                                                                 ? (prev.condition ?? 'blinded')
                                                                 : undefined,
+                                                            economy: nextTarget === 'economy' ? (prev.economy ?? 'action') : undefined,
                                                             value:
-                                                              nextTarget === 'condition' || nextMode === 'adv' || nextMode === 'dis' || nextMode === 'apply'
+                                                              nextTarget === 'condition' || nextTarget === 'economy' || nextMode === 'adv' || nextMode === 'dis' || nextMode === 'apply' || nextMode === 'remove'
                                                                 ? undefined
                                                                 : nextTarget === 'speed'
                                                                   ? prevSpeedValueMeters ?? prev.value
@@ -1567,7 +1588,7 @@ export function AddedSpellsCard(props: {
                                                           if (s.spellIndex !== entry.spellIndex) return s
                                                           const effects = [...(s.effects ?? [])]
                                                           const next = { ...effects[idx], mode }
-                                                          if (mode === 'adv' || mode === 'dis' || mode === 'apply') {
+                                                          if (mode === 'adv' || mode === 'dis' || mode === 'apply' || mode === 'remove') {
                                                             next.value = undefined
                                                           }
                                                           effects[idx] = next
@@ -1584,14 +1605,20 @@ export function AddedSpellsCard(props: {
                                                   </Select>
                                                 </div>
 
-                                                {needsAbility || needsCondition ? (
+                                                {needsAbility || needsCondition || needsEconomy ? (
                                                   <div>
                                                     <label className="text-[11px] text-text">
-                                                      {needsCondition ? 'Condição' : 'Atributo'}
+                                                      {needsEconomy ? 'Remover' : needsCondition ? 'Condição' : 'Atributo'}
                                                     </label>
                                                     <Select
                                                       className="mt-1 h-9"
-                                                      value={needsCondition ? (eff.condition ?? 'blinded') : (eff.ability ?? 'cha')}
+                                                      value={
+                                                        needsEconomy
+                                                          ? (eff.economy ?? 'action')
+                                                          : needsCondition
+                                                            ? (eff.condition ?? 'blinded')
+                                                            : (eff.ability ?? 'cha')
+                                                      }
                                                       onChange={(e) => {
                                                         const raw = e.target.value
                                                         updateCharacter(activeCharacter.id, (c) => ({
@@ -1599,15 +1626,27 @@ export function AddedSpellsCard(props: {
                                                           spells: c.spells.map((s) => {
                                                             if (s.spellIndex !== entry.spellIndex) return s
                                                             const effects = [...(s.effects ?? [])]
-                                                            effects[idx] = needsCondition
-                                                              ? { ...effects[idx], condition: raw as ConditionKey }
-                                                              : { ...effects[idx], ability: raw as Ability }
+                                                            effects[idx] = needsEconomy
+                                                              ? { ...effects[idx], economy: raw as ActionEconomyKey }
+                                                              : needsCondition
+                                                                ? { ...effects[idx], condition: raw as ConditionKey }
+                                                                : { ...effects[idx], ability: raw as Ability }
                                                             return { ...s, effects }
                                                           }),
                                                         }))
                                                       }}
                                                     >
-                                                      {needsCondition
+                                                      {needsEconomy
+                                                        ? (
+                                                            <>
+                                                              <option value="action">Ação</option>
+                                                              <option value="bonusAction">Ação bônus</option>
+                                                              <option value="reaction">Reação</option>
+                                                              <option value="movement">Movimento</option>
+                                                              <option value="turn">Turno</option>
+                                                            </>
+                                                          )
+                                                        : needsCondition
                                                         ? conditionOptions.map((c) => (
                                                             <option key={c.value} value={c.value}>
                                                               {c.label}

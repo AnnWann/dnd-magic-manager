@@ -16,8 +16,16 @@ export type SpellEffectTarget =
   | 'save'
   | 'ability'
   | 'condition'
+  | 'economy'
 
-export type SpellEffectMode = 'add' | 'sub' | 'set' | 'adv' | 'dis' | 'apply'
+export type SpellEffectMode = 'add' | 'sub' | 'set' | 'adv' | 'dis' | 'apply' | 'remove'
+
+export type ActionEconomyKey =
+  | 'action'
+  | 'bonusAction'
+  | 'reaction'
+  | 'movement'
+  | 'turn'
 
 export type ConditionKey =
   | 'blinded'
@@ -41,6 +49,8 @@ export interface SpellEffect {
   unit?: 'ft' | 'm'
   /** Optional: when target is condition. */
   condition?: ConditionKey
+  /** Optional: when target is economy (remove action economy options). */
+  economy?: ActionEconomyKey
 }
 
 export interface HomebrewSpell {
