@@ -22,7 +22,7 @@ import { homebrewToDndSpell } from '../lib/homebrew'
 import { estimateSpellDamageDice, upcastRuleLabel } from '../lib/spellDamage'
 import { isAllowedSchoolForClass } from '../lib/spellAccess'
 import { spellMeta } from '../lib/spellMeta'
-import { castTimeKindFromText, castTimeKindLabelPt } from '../lib/castTime'
+import { castTimeKindFromText, castTimeKindLabelPt, castTimeReactionWhenFromApi } from '../lib/castTime'
 import {
   SCHOOL_NAME_PT,
   apiClassLabel,
@@ -516,6 +516,11 @@ export function AddedSpellsCard(props: {
 
                   const castTimeKind =
                     entry.castTimeKind ?? castTimeKindFromText((detail as DndSpell | undefined)?.casting_time)
+
+                  const reactionWhenAuto = castTimeReactionWhenFromApi({
+                    castingTime: (detail as DndSpell | undefined)?.casting_time,
+                    desc: (detail as DndSpell | undefined)?.desc ?? null,
+                  })
 
                   const manualEffects = entry.effects ?? []
 
@@ -1064,7 +1069,16 @@ export function AddedSpellsCard(props: {
                                       updateCharacter(activeCharacter.id, (c) => ({
                                         ...c,
                                         spells: c.spells.map((s) =>
-                                          s.spellIndex === entry.spellIndex ? { ...s, castTimeKind } : s,
+                                          s.spellIndex === entry.spellIndex
+                                            ? {
+                                                ...s,
+                                                castTimeKind,
+                                                reactionWhen:
+                                                  castTimeKind === 'reaction'
+                                                    ? (reactionWhenAuto ?? s.reactionWhen)
+                                                    : undefined,
+                                              }
+                                            : s,
                                         ),
                                       }))
                                     }}
@@ -1074,6 +1088,26 @@ export function AddedSpellsCard(props: {
                                     <option value="bonus">Bônus</option>
                                     <option value="reaction">Reação</option>
                                   </Select>
+
+                                  {castTimeKind === 'reaction' ? (
+                                    <div className="mt-2">
+                                      <div className="text-xs text-text">Quando (reação)</div>
+                                      <Input
+                                        className="mt-1"
+                                        value={entry.reactionWhen ?? reactionWhenAuto ?? ''}
+                                        onChange={(e) => {
+                                          const reactionWhen = e.target.value || undefined
+                                          updateCharacter(activeCharacter.id, (c) => ({
+                                            ...c,
+                                            spells: c.spells.map((s) =>
+                                              s.spellIndex === entry.spellIndex ? { ...s, reactionWhen } : s,
+                                            ),
+                                          }))
+                                        }}
+                                        placeholder={'ex: quando você for atingido por um ataque…'}
+                                      />
+                                    </div>
+                                  ) : null}
                                 </div>
 
                                 <div className="mt-3 flex gap-2">

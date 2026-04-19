@@ -117,6 +117,9 @@ export interface AddedSpell {
   /** Optional: how this spell is cast in combat (action economy) */
   castTimeKind?: SpellCastTimeKind
 
+  /** Optional: when castTimeKind resolves to 'reaction', describes when the reaction can be taken. */
+  reactionWhen?: string
+
   /** Optional: whether this spell is currently prepared (when applicable) */
   prepared?: boolean
 
