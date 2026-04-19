@@ -161,6 +161,7 @@ export function AddedSpellsCard(props: {
     { value: 'economy', label: 'Remover (ações)' },
     { value: 'forcedMove', label: t('effects.forcedMove') },
     { value: 'conditionalDamage', label: 'Dano condicional' },
+    { value: 'saveOutcomeDamage', label: 'Resultado do TR' },
     { value: 'rollDice', label: 'Dado em rolagens' },
   ]
 
@@ -195,6 +196,7 @@ export function AddedSpellsCard(props: {
     if (t === 'forcedMove') return ['apply']
     if (t === 'condition') return ['apply']
     if (t === 'conditionalDamage') return ['apply']
+    if (t === 'saveOutcomeDamage') return ['apply']
     if (t === 'rollDice') return ['apply']
     if (t === 'economy') return ['remove']
     if (t === 'ability') return ['add', 'sub', 'set']
@@ -296,6 +298,22 @@ export function AddedSpellsCard(props: {
         })()
 
         return when ? `Dano (${when}): ${scaled}` : `Dano cond.: ${scaled}`
+      }
+
+      if (eff.target === 'saveOutcomeDamage') {
+        const outcome = eff.saveOutcome ?? 'success'
+        const op = eff.saveDamageOp ?? 'div'
+        const value = eff.saveDamageValue
+
+        const text = eff.saveOutcomeText?.trim() ? eff.saveOutcomeText.trim() : undefined
+
+        const when = outcome === 'failure' ? 'TR falhou' : 'TR passou'
+
+        if (text) return `${when}: ${text}`
+
+        const opLabel = op === 'mul' ? '×' : op === 'div' ? '÷' : op === 'add' ? '+' : '−'
+        const v = typeof value === 'number' && Number.isFinite(value) ? fmt(value) : '—'
+        return `${when}: ${opLabel} ${v}`
       }
 
       if (eff.target === 'rollDice') {
@@ -1735,12 +1753,14 @@ export function AddedSpellsCard(props: {
                                             const modeChoices = modeOptionsForTarget(target)
                                             const needsValue =
                                               (eff.mode === 'add' || eff.mode === 'sub' || eff.mode === 'set') &&
-                                              target !== 'conditionalDamage'
+                                              target !== 'conditionalDamage' &&
+                                              target !== 'saveOutcomeDamage'
                                             const needsAbility =
                                               target === 'attack' || target === 'save' || target === 'ability'
                                             const needsCondition = target === 'condition'
                                             const needsEconomy = target === 'economy'
                                             const needsConditionalDamage = target === 'conditionalDamage'
+                                            const needsSaveOutcomeDamage = target === 'saveOutcomeDamage'
                                             const needsRollDice = target === 'rollDice'
                                             const needsForcedMove = target === 'forcedMove'
 
@@ -1793,6 +1813,24 @@ export function AddedSpellsCard(props: {
                                                             damageDice:
                                                               nextTarget === 'conditionalDamage'
                                                                 ? (prev.damageDice ?? '1d6')
+                                                                : undefined,
+                                                            saveOutcome:
+                                                              nextTarget === 'saveOutcomeDamage'
+                                                                ? (prev.saveOutcome ?? 'success')
+                                                                : undefined,
+                                                            saveOutcomeText:
+                                                              nextTarget === 'saveOutcomeDamage'
+                                                                ? (prev.saveOutcomeText ?? '')
+                                                                : undefined,
+                                                            saveDamageOp:
+                                                              nextTarget === 'saveOutcomeDamage'
+                                                                ? (prev.saveDamageOp ?? 'div')
+                                                                : undefined,
+                                                            saveDamageValue:
+                                                              nextTarget === 'saveOutcomeDamage'
+                                                                ? (typeof prev.saveDamageValue === 'number'
+                                                                    ? prev.saveDamageValue
+                                                                    : 2)
                                                                 : undefined,
                                                             rollDice:
                                                               nextTarget === 'rollDice'
@@ -2070,7 +2108,106 @@ export function AddedSpellsCard(props: {
                                                   </div>
                                                 ) : null}
 
-                                                {needsConditionalDamage ? (
+                                                {needsSaveOutcomeDamage ? (
+                                                  <>
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Quando</label>
+                                                      <Select
+                                                        className="mt-1 h-9"
+                                                        value={eff.saveOutcome ?? 'success'}
+                                                        onChange={(e) => {
+                                                          const saveOutcome = e.target.value as NonNullable<SpellEffect['saveOutcome']>
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], saveOutcome }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                      >
+                                                        <option value="success">TR passou</option>
+                                                        <option value="failure">TR falhou</option>
+                                                      </Select>
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Texto (opcional)</label>
+                                                      <Input
+                                                        className="mt-1 h-9"
+                                                        value={eff.saveOutcomeText ?? ''}
+                                                        onChange={(e) => {
+                                                          const raw = e.target.value
+                                                          const saveOutcomeText = raw
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], saveOutcomeText }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        placeholder='ex: metade do dano'
+                                                      />
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Ajuste</label>
+                                                      <Select
+                                                        className="mt-1 h-9"
+                                                        value={eff.saveDamageOp ?? 'div'}
+                                                        onChange={(e) => {
+                                                          const saveDamageOp = e.target.value as NonNullable<SpellEffect['saveDamageOp']>
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], saveDamageOp }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                      >
+                                                        <option value="mul">× (multiplicar)</option>
+                                                        <option value="div">÷ (dividir)</option>
+                                                        <option value="add">+ (somar)</option>
+                                                        <option value="sub">− (subtrair)</option>
+                                                      </Select>
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Valor</label>
+                                                      <Input
+                                                        className="mt-1 h-9"
+                                                        type="number"
+                                                        inputMode="decimal"
+                                                        value={typeof eff.saveDamageValue === 'number' ? String(eff.saveDamageValue) : ''}
+                                                        onFocus={(e) => e.currentTarget.select()}
+                                                        onChange={(e) => {
+                                                          const raw = e.target.value
+                                                          const saveDamageValue = raw === '' ? undefined : Number(raw)
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], saveDamageValue }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        min={0}
+                                                        step={0.5}
+                                                        placeholder="ex: 2"
+                                                      />
+                                                    </div>
+                                                  </>
+                                                ) : needsConditionalDamage ? (
                                                   <>
                                                     <div>
                                                       <label className="text-[11px] text-text">Quando</label>

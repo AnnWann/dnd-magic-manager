@@ -19,6 +19,7 @@ export type SpellEffectTarget =
   | 'economy'
   | 'forcedMove'
   | 'conditionalDamage'
+  | 'saveOutcomeDamage'
   | 'rollDice'
 
 export type SpellEffectMode = 'add' | 'sub' | 'set' | 'adv' | 'dis' | 'apply' | 'remove'
@@ -63,6 +64,15 @@ export interface SpellEffect {
   damageWhen?: string
   /** Optional: when target is conditionalDamage (dice text like "2d6"). */
   damageDice?: string
+
+  /** Optional: when target is saveOutcomeDamage (pass/fail saving throw adjustment). */
+  saveOutcome?: 'success' | 'failure'
+  /** Optional: when target is saveOutcomeDamage (free text shown for the outcome). */
+  saveOutcomeText?: string
+  /** Operation for saveOutcomeDamage (how the damage is adjusted). */
+  saveDamageOp?: 'mul' | 'div' | 'add' | 'sub'
+  /** Value for saveOutcomeDamage operation (e.g. 2 for ÷2, 0.5 for ×0.5, 3 for +3). */
+  saveDamageValue?: number
 
   /** Optional: when target is forcedMove. */
   forcedMoveDirection?: 'any' | 'towards' | 'away' | 'direction'
