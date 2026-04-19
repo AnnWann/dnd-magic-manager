@@ -578,12 +578,19 @@ function App() {
       const classId = entry.sourceClassId
       if (!classId) continue
       if (!(classId in limitsByClassId)) continue
+
+      const level = entry.homebrew
+        ? entry.homebrew.level
+        : spellDetails[entry.spellIndex]?.level
+      // Cantrips are always available and should not count against prepared limits.
+      if (level === 0) continue
+
       if (!entry.prepared) continue
       preparedCountByClassId[classId] = (preparedCountByClassId[classId] ?? 0) + 1
     }
 
     return { limitsByClassId, preparedCountByClassId }
-  }, [activeCharacter])
+  }, [activeCharacter, spellDetails])
 
   const filteredAddedSpells = useMemo(() => {
     if (!activeCharacter) return []
@@ -619,14 +626,17 @@ function App() {
         return classId in preparedMeta.limitsByClassId
       })()
 
+      const isCantrip = (detail?.level ?? 1) === 0
+
       // Filtering semantics:
       // - "prepared": show both explicitly prepared spells AND spells that don't require preparation (always available)
       // - "notPrepared": show only spells that use the prepared system and are not marked prepared
       if (addedPreparedFilter === 'prepared') {
-        if (usesPreparedSystem && !entry.prepared) return false
+        if (usesPreparedSystem && !isCantrip && !entry.prepared) return false
       }
       if (addedPreparedFilter === 'notPrepared') {
         if (!usesPreparedSystem) return false
+        if (isCantrip) return false
         if (entry.prepared) return false
       }
       return true

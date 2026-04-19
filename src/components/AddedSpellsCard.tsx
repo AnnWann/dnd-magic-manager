@@ -699,15 +699,18 @@ export function AddedSpellsCard(props: {
                   const prepCount = prepClassId
                     ? (preparedMeta.preparedCountByClassId[prepClassId] ?? 0)
                     : 0
-                  const isPrepared = Boolean(entry.prepared)
-                  const canPrepare = typeof prepLimit === 'number'
+                  const isCantrip = (detail?.level ?? 1) === 0
+                  const isPrepared = isCantrip ? true : Boolean(entry.prepared)
+                  const canPrepare = typeof prepLimit === 'number' && !isCantrip
                   const limitReached = canPrepare ? prepCount >= prepLimit : true
-                  const disablePrepare = !isPrepared && (!canPrepare || limitReached)
-                  const prepTitle = !canPrepare
-                    ? 'Esta fonte não usa lista de magias preparadas.'
-                    : limitReached && !isPrepared
-                      ? `Limite de preparadas atingido (${prepCount}/${prepLimit}).`
-                      : `Preparadas: ${prepCount}/${prepLimit}`
+                  const disablePrepare = isCantrip ? true : (!isPrepared && (!canPrepare || limitReached))
+                  const prepTitle = isCantrip
+                    ? 'Cantrip é sempre preparada.'
+                    : !canPrepare
+                      ? 'Esta fonte não usa lista de magias preparadas.'
+                      : limitReached && !isPrepared
+                        ? `Limite de preparadas atingido (${prepCount}/${prepLimit}).`
+                        : `Preparadas: ${prepCount}/${prepLimit}`
 
                   const isDetailsOpen = openDetailsSpellIndex === entry.spellIndex
                   const isSourceInfoOpen = openSourceInfoSpellIndex === entry.spellIndex
@@ -723,6 +726,7 @@ export function AddedSpellsCard(props: {
                                 checked={isPrepared}
                                 disabled={disablePrepare}
                                 onChange={(e) => {
+                                  if (isCantrip) return
                                   const next = e.target.checked
                                   if (next) {
                                     if (!canPrepare) return
