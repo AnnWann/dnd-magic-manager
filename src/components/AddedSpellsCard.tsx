@@ -166,6 +166,23 @@ export function AddedSpellsCard(props: {
     ? Math.max(0, Math.trunc(slotUsage.pactUsed))
     : 0
 
+  const sorcererLevel = useMemo(
+    () =>
+      activeCharacter.classes.reduce(
+        (acc, c) => acc + (c.classIndex === 'sorcerer' ? (typeof c.level === 'number' ? c.level : 0) : 0),
+        0,
+      ),
+    [activeCharacter.classes],
+  )
+  const sorceryPointsMax = Math.max(0, Math.trunc(sorcererLevel))
+  const sorceryPointsUsedRaw = activeCharacter.sorceryPointsUsed
+  const sorceryPointsUsed =
+    typeof sorceryPointsUsedRaw === 'number' && Number.isFinite(sorceryPointsUsedRaw)
+      ? Math.max(0, Math.trunc(sorceryPointsUsedRaw))
+      : 0
+  const sorceryPointsUsedClamped = sorceryPointsMax > 0 ? Math.min(sorceryPointsUsed, sorceryPointsMax) : 0
+  const sorceryPointsRemaining = sorceryPointsMax > 0 ? Math.max(0, sorceryPointsMax - sorceryPointsUsedClamped) : 0
+
   const [addFreeUsesSpellIndex, setAddFreeUsesSpellIndex] = useState<string>(() => activeCharacter.spells[0]?.spellIndex ?? '')
   const [addFreeUsesMax, setAddFreeUsesMax] = useState<number>(1)
   const [addFreeUsesReset, setAddFreeUsesReset] = useState<RestResetKind>('longRest')
@@ -592,6 +609,69 @@ export function AddedSpellsCard(props: {
                             )
                           })()
                         ) : null}
+
+                        {sorceryPointsMax > 0 ? (
+                          <div className="rounded-md border border-border bg-bg px-2 py-1">
+                            <div className="text-[11px] text-text">Metamagia (PF)</div>
+                            <div className="mt-0.5 flex items-center gap-2">
+                              <span className="font-mono text-xs text-textH">{sorceryPointsRemaining}/{sorceryPointsMax}</span>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 w-7 px-0"
+                                title="Recuperar 1 (pontos de feitiçaria)"
+                                disabled={sorceryPointsUsedClamped <= 0}
+                                onClick={() => {
+                                  updateCharacter(activeCharacter.id, (c) => {
+                                    const max = c.classes.reduce(
+                                      (acc, cls) => acc + (cls.classIndex === 'sorcerer' ? (typeof cls.level === 'number' ? cls.level : 0) : 0),
+                                      0,
+                                    )
+                                    const m = Math.max(0, Math.trunc(max))
+                                    if (m <= 0) return { ...c, sorceryPointsUsed: undefined }
+
+                                    const prevUsedRaw = c.sorceryPointsUsed
+                                    const prevUsed =
+                                      typeof prevUsedRaw === 'number' && Number.isFinite(prevUsedRaw)
+                                        ? Math.max(0, Math.trunc(prevUsedRaw))
+                                        : 0
+                                    const nextUsed = Math.max(0, Math.min(m, prevUsed - 1))
+                                    return { ...c, sorceryPointsUsed: nextUsed }
+                                  })
+                                }}
+                              >
+                                +
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 w-7 px-0"
+                                title="Gastar 1 (pontos de feitiçaria)"
+                                disabled={sorceryPointsRemaining <= 0}
+                                onClick={() => {
+                                  updateCharacter(activeCharacter.id, (c) => {
+                                    const max = c.classes.reduce(
+                                      (acc, cls) => acc + (cls.classIndex === 'sorcerer' ? (typeof cls.level === 'number' ? cls.level : 0) : 0),
+                                      0,
+                                    )
+                                    const m = Math.max(0, Math.trunc(max))
+                                    if (m <= 0) return { ...c, sorceryPointsUsed: undefined }
+
+                                    const prevUsedRaw = c.sorceryPointsUsed
+                                    const prevUsed =
+                                      typeof prevUsedRaw === 'number' && Number.isFinite(prevUsedRaw)
+                                        ? Math.max(0, Math.trunc(prevUsedRaw))
+                                        : 0
+                                    const nextUsed = Math.max(0, Math.min(m, prevUsed + 1))
+                                    return { ...c, sorceryPointsUsed: nextUsed }
+                                  })
+                                }}
+                              >
+                                −
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       <Button
@@ -602,6 +682,10 @@ export function AddedSpellsCard(props: {
                         onClick={() => {
                           updateCharacter(activeCharacter.id, (c) => {
                             const prev = c.slotUsage ?? {}
+                            const sorcLevel = c.classes.reduce(
+                              (acc, cls) => acc + (cls.classIndex === 'sorcerer' ? (typeof cls.level === 'number' ? cls.level : 0) : 0),
+                              0,
+                            )
                             const nextSpells = c.spells.map((s) => {
                               const fu = s.freeUses
                               if (!fu) return s
@@ -617,6 +701,7 @@ export function AddedSpellsCard(props: {
                             return {
                               ...c,
                               spells: nextSpells,
+                              sorceryPointsUsed: sorcLevel > 0 ? 0 : undefined,
                               slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
                             }
                           })

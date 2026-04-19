@@ -225,6 +225,9 @@ export interface Character {
 
   /** Optional: per-character tracker for spell slot usage. */
   slotUsage?: SpellSlotUsage
+
+  /** Optional: Sorcerer resource tracker (used sorcery points; max is based on Sorcerer level). */
+  sorceryPointsUsed?: number
 }
 
 export interface DndApiRef {
