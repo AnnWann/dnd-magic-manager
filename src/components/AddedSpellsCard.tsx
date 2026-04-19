@@ -1078,8 +1078,10 @@ export function AddedSpellsCard(props: {
 
                       {isOpen ? (
                         <tr className="border-t border-border">
-                          <td className="p-3" colSpan={10}>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_minmax(0,1fr)]">
+                          <td className="p-0" colSpan={10}>
+                            <div className="sticky left-0 z-10 w-[100vw] max-w-[100vw] bg-bg md:static md:w-auto md:max-w-none">
+                              <div className="p-3">
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_minmax(0,1fr)]">
                               <div>
                                 <div className="text-xs font-semibold text-textH">Nome em português</div>
                                 <div className="mt-1 text-xs text-text">Opcional. Se preenchido, aparece na lista.</div>
@@ -1153,7 +1155,7 @@ export function AddedSpellsCard(props: {
                                   ) : null}
                                 </div>
 
-                                <div className="mt-3 flex gap-2">
+                                <div className="mt-3 flex flex-wrap gap-2">
                                   <Button
                                     size="sm"
                                     variant={openSpellTab === 'official' ? 'primary' : 'secondary'}
@@ -1310,7 +1312,7 @@ export function AddedSpellsCard(props: {
 
                                                   <div className="mt-3">
                                                     <div className="text-xs font-semibold text-textH">Descrição</div>
-                                                    <div className="mt-2 space-y-2 text-sm text-text">
+                                                    <div className="mt-2 space-y-2 text-sm text-text break-words">
                                                       {(hb.desc?.trim() ? [hb.desc.trim()] : []).map((p, i) => (
                                                         <p key={i}>
                                                           <InlineMarkdown text={p} />
@@ -1323,7 +1325,7 @@ export function AddedSpellsCard(props: {
                                                   {hb.higherLevel?.trim() ? (
                                                     <div className="mt-3 rounded-lg border border-border bg-bg p-3">
                                                       <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
-                                                      <div className="mt-2 space-y-2 text-sm text-text">
+                                                      <div className="mt-2 space-y-2 text-sm text-text break-words">
                                                         <p>
                                                           <InlineMarkdown text={hb.higherLevel.trim()} />
                                                         </p>
@@ -1644,7 +1646,7 @@ export function AddedSpellsCard(props: {
                                               </div>
                                             </div>
 
-                                            <div className="mt-2 space-y-2 text-sm text-text">
+                                            <div className="mt-2 space-y-2 text-sm text-text break-words">
                                               {!detail ? (
                                                 <div>Carregando…</div>
                                               ) : (
@@ -1663,7 +1665,7 @@ export function AddedSpellsCard(props: {
                                                       <div className="text-xs font-semibold text-textH">
                                                         Em níveis superiores
                                                       </div>
-                                                      <div className="mt-2 space-y-2 text-sm text-text">
+                                                      <div className="mt-2 space-y-2 text-sm text-text break-words">
                                                         {(entry.officialHigherLevelPt?.length
                                                           ? entry.officialHigherLevelPt
                                                           : detail.higher_level!
@@ -1888,7 +1890,7 @@ export function AddedSpellsCard(props: {
                                                             </Button>
 
                                                             <Input
-                                                              className="h-9"
+                                                              className="h-9 !w-auto flex-1 min-w-0"
                                                               type="number"
                                                               inputMode="decimal"
                                                               value={typeof eff.value === 'number' ? String(eff.value) : ''}
@@ -2215,7 +2217,7 @@ export function AddedSpellsCard(props: {
                                                       </Button>
 
                                                       <Input
-                                                        className="h-9"
+                                                        className="h-9 !w-auto flex-1 min-w-0"
                                                         type="number"
                                                         inputMode="decimal"
                                                         disabled={!needsValue}
@@ -2360,6 +2362,8 @@ export function AddedSpellsCard(props: {
                                     />
                                   </div>
                                 )}
+                              </div>
+                                </div>
                               </div>
                             </div>
                           </td>
