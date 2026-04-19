@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   Ability,
   AddedSpell,
@@ -9,6 +9,7 @@ import type {
   MagicCircleLevel,
   HomebrewSpell,
   HomebrewSpellMechanic,
+  SpellEffect,
   SpellCastTimeKind,
 } from './types'
 import { getSpell, listSpells } from './lib/dnd5eApi'
@@ -86,6 +87,8 @@ function App() {
 
   const characters = appState.characters
   const activeCharacterId = appState.activeCharacterId
+  const spellCache = appState.spellCache ?? {}
+  const effectPresets = appState.effectPresets ?? {}
 
   const activeCharacter = useMemo(
     () => characters.find((c) => c.id === activeCharacterId) ?? characters[0],
@@ -95,13 +98,45 @@ function App() {
   useEffect(() => {
     if (characters.length === 0) {
       const c = newCharacter('Meu personagem')
-      setAppState({ version: 1, characters: [c], activeCharacterId: c.id })
+      setAppState({ version: 1, characters: [c], activeCharacterId: c.id, spellCache: {}, effectPresets: {} })
       return
     }
     if (!activeCharacter && characters[0]) {
       setAppState((s) => ({ ...s, activeCharacterId: characters[0].id }))
     }
   }, [activeCharacter, characters, setAppState])
+
+  function effectsEqual(a: SpellEffect[] | undefined, b: SpellEffect[] | undefined): boolean {
+    const aa = a ?? []
+    const bb = b ?? []
+    if (aa.length !== bb.length) return false
+    for (let i = 0; i < aa.length; i++) {
+      if (JSON.stringify(aa[i]) !== JSON.stringify(bb[i])) return false
+    }
+    return true
+  }
+
+  const writeSpellToBaseCache = useCallback(
+    (spell: DndSpell) => {
+      setAppState((prev) => {
+        const prevCache = prev.spellCache ?? {}
+        if (prevCache[spell.index]) return prev
+        return { ...prev, spellCache: { ...prevCache, [spell.index]: spell } }
+      })
+    },
+    [setAppState],
+  )
+
+  const getSpellFromBaseOrApi = useCallback(
+    async (index: string, signal?: AbortSignal): Promise<DndSpell> => {
+      const cached = spellCache[index]
+      if (cached) return cached
+      const spell = await getSpell(index, signal)
+      writeSpellToBaseCache(spell)
+      return spell
+    },
+    [spellCache, writeSpellToBaseCache],
+  )
 
   const [spellList, setSpellList] = useState<DndApiRef[] | null>(null)
   const [spellListError, setSpellListError] = useState<string | null>(null)
@@ -238,7 +273,7 @@ function App() {
 
     setTranslateStatus({ kind: 'loading', spellIndex: spellRef.index })
     try {
-      const detail = await getSpell(spellRef.index)
+      const detail = await getSpellFromBaseOrApi(spellRef.index)
       setSpellDetails((prev) => ({ ...prev, [detail.index]: detail }))
 
       const characterClasses = activeCharacter.classes
@@ -264,6 +299,7 @@ function App() {
         addedAt: Date.now(),
         castSlotLevel: (detail.level as MagicCircleLevel) ?? 1,
         castTimeKind: castTimeKindFromText(detail.casting_time),
+        effects: effectPresets[detail.index],
         officialDescPt,
         officialHigherLevelPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
       }
@@ -322,8 +358,14 @@ function App() {
       .filter((s) => !(s.homebrew || isHomebrewIndex(s.spellIndex)))
       .map((s) => s.spellIndex)
     for (const index of indices) {
+      const fromBase = spellCache[index]
+      if (fromBase && !spellDetails[index]) {
+        setSpellDetails((prev) => ({ ...prev, [index]: fromBase }))
+        setSpellDetailsError((prev) => ({ ...prev, [index]: undefined }))
+        continue
+      }
       if (spellDetails[index] || spellDetailsError[index]) continue
-      getSpell(index, controller.signal)
+      getSpellFromBaseOrApi(index, controller.signal)
         .then((spell) => {
           setSpellDetails((prev) => ({ ...prev, [index]: spell }))
           setSpellDetailsError((prev) => ({ ...prev, [index]: undefined }))
@@ -336,7 +378,7 @@ function App() {
         })
     }
     return () => controller.abort()
-  }, [activeCharacter, spellDetails, spellDetailsError])
+  }, [activeCharacter, getSpellFromBaseOrApi, spellCache, spellDetails, spellDetailsError])
 
   const activeCharacterTotalLevel = useMemo(() => {
     if (!activeCharacter) return 1
@@ -469,10 +511,36 @@ function App() {
   }, [activeCharacterSpellsSet, spellList, unaddedSearch])
 
   function updateCharacter(characterId: string, updater: (c: Character) => Character) {
-    setAppState((prev) => ({
-      ...prev,
-      characters: prev.characters.map((c) => (c.id === characterId ? updater(c) : c)),
-    }))
+    setAppState((prev) => {
+      const prevPresets = prev.effectPresets ?? {}
+      let nextPresets = prevPresets
+      let changedPresets = false
+
+      const nextCharacters = prev.characters.map((c) => {
+        if (c.id !== characterId) return c
+        const nextC = updater(c)
+
+        const prevByIndex = new Map(c.spells.map((s) => [s.spellIndex, s]))
+        for (const nextSpell of nextC.spells) {
+          const prevSpell = prevByIndex.get(nextSpell.spellIndex)
+          const prevEffects = prevSpell?.effects
+          const nextEffects = nextSpell.effects
+          if (!effectsEqual(prevEffects, nextEffects)) {
+            if (nextPresets === prevPresets) nextPresets = { ...prevPresets }
+            nextPresets[nextSpell.spellIndex] = nextEffects ?? []
+            changedPresets = true
+          }
+        }
+
+        return nextC
+      })
+
+      return {
+        ...prev,
+        characters: nextCharacters,
+        effectPresets: changedPresets ? nextPresets : prev.effectPresets,
+      }
+    })
   }
 
   function addCharacter() {
@@ -512,7 +580,7 @@ function App() {
     if (!activeCharacter) return
     if (activeCharacterSpellsSet.has(spellRef.index)) return
 
-    const detail = await getSpell(spellRef.index)
+    const detail = await getSpellFromBaseOrApi(spellRef.index)
     setSpellDetails((prev) => ({ ...prev, [detail.index]: detail }))
 
     const characterClasses = activeCharacter.classes
@@ -531,6 +599,7 @@ function App() {
       addedAt: Date.now(),
       castSlotLevel: (detail.level as MagicCircleLevel) ?? 1,
       castTimeKind: castTimeKindFromText(detail.casting_time),
+      effects: effectPresets[detail.index],
     }
 
     updateCharacter(activeCharacter.id, (c) => ({
