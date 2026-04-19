@@ -213,6 +213,15 @@ export interface DndSpell extends DndApiRef {
   damage?: unknown
 }
 
+export interface SpellTranslation {
+  /** Optional Portuguese display name (e.g. user-entered or translated). */
+  namePt?: string
+  /** Optional Portuguese description for official spells. */
+  descPt?: string[]
+  /** Optional Portuguese "At Higher Levels" for official spells. */
+  higherPt?: string[]
+}
+
 export interface SpellListResponse {
   count: number
   results: DndApiRef[]

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import type { Character, DndApiRef, DndSpell, HomebrewSpell, MagicCircleLevel } from '../types'
+import type { Character, DndApiRef, DndSpell, HomebrewSpell, MagicCircleLevel, SpellTranslation } from '../types'
 import { magicCircleOptions } from '../lib/rules'
 import { CLASS_NAME_BY_INDEX, CLASS_OPTIONS, classDisplayName, SCHOOL_NAME_PT, schoolLabel } from '../lib/spellLabels'
 import { Button } from './ui/Button'
@@ -32,6 +32,7 @@ export function AddSpellsCard(props: {
   translateStatus: TranslateStatus
   getSpellDetails: (index: string, signal?: AbortSignal) => Promise<DndSpell>
   homebrewLibrary: Record<string, HomebrewSpell>
+  spellTranslations: Record<string, SpellTranslation>
 }) {
   const {
     spellList,
@@ -52,6 +53,7 @@ export function AddSpellsCard(props: {
     translateStatus,
     getSpellDetails,
     homebrewLibrary,
+    spellTranslations,
   } = props
 
   const [showDescMode, setShowDescMode] = useState<'off' | 'on'>('off')
@@ -209,7 +211,7 @@ export function AddSpellsCard(props: {
           </div>
         </div>
 
-        {unaddedSearch.trim() ? (
+        {unaddedSearch.trim() || unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any' ? (
           <div className="mt-3 overflow-auto rounded-lg border border-border">
             <table className="w-full min-w-[720px] border-collapse">
               <thead className="bg-accentBg">
@@ -231,6 +233,13 @@ export function AddSpellsCard(props: {
                   unaddedResults.map((s) => {
                     const auto = activeCharacter.classes[0]
                     const isHomebrew = s.index.startsWith('hb:')
+                    const hasCachedTranslation =
+                      !isHomebrew &&
+                      Boolean(
+                        spellTranslations[s.index]?.descPt?.length ||
+                          spellTranslations[s.index]?.higherPt?.length ||
+                          spellTranslations[s.index]?.namePt?.trim(),
+                      )
                     const isBusy =
                       !isHomebrew &&
                       translateStatus.kind === 'loading' &&
@@ -276,6 +285,8 @@ export function AddSpellsCard(props: {
                           <td className="p-2">
                             <div className="flex flex-col items-start gap-1">
                               {isHomebrew ? (
+                                <div className="text-[11px] text-text">—</div>
+                              ) : hasCachedTranslation ? (
                                 <div className="text-[11px] text-text">—</div>
                               ) : (
                                 <>

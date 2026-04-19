@@ -11,6 +11,7 @@ import type {
   HomebrewSpellMechanic,
   SpellEffect,
   SpellCastTimeKind,
+  SpellTranslation,
 } from './types'
 import { getSpell, listSpells } from './lib/dnd5eApi'
 import {
@@ -90,6 +91,7 @@ function App() {
   const spellCache = appState.spellCache ?? {}
   const effectPresets = appState.effectPresets ?? {}
   const homebrewLibrary = appState.homebrewLibrary ?? {}
+  const spellTranslations = appState.spellTranslations ?? {}
 
   const activeCharacter = useMemo(
     () => characters.find((c) => c.id === activeCharacterId) ?? characters[0],
@@ -106,6 +108,7 @@ function App() {
         spellCache: {},
         effectPresets: {},
         homebrewLibrary: {},
+        spellTranslations: {},
       })
       return
     }
@@ -164,6 +167,10 @@ function App() {
       let nextPresets = prevPresets
       let changedPresets = false
 
+      const prevTranslations = prev.spellTranslations ?? {}
+      let nextTranslations = prevTranslations
+      let changedTranslations = false
+
       for (const c of prev.characters) {
         for (const s of c.spells) {
           if (!s.homebrew) continue
@@ -193,11 +200,34 @@ function App() {
         }
       }
 
-      if (!changedLib && !changedPresets) return prev
+      for (const c of prev.characters) {
+        for (const s of c.spells) {
+          if (s.homebrew || isHomebrewIndex(s.spellIndex)) continue
+          const namePt = s.displayNamePt?.trim()
+          const descPt = s.officialDescPt
+          const higherPt = s.officialHigherLevelPt
+          if (!namePt && !descPt?.length && !higherPt?.length) continue
+
+          const prevT = prevTranslations[s.spellIndex]
+          const merged: SpellTranslation = {
+            namePt: namePt || prevT?.namePt,
+            descPt: (descPt?.length ? descPt : prevT?.descPt) ?? undefined,
+            higherPt: (higherPt?.length ? higherPt : prevT?.higherPt) ?? undefined,
+          }
+          if (JSON.stringify(prevT ?? {}) !== JSON.stringify(merged)) {
+            if (nextTranslations === prevTranslations) nextTranslations = { ...prevTranslations }
+            nextTranslations[s.spellIndex] = merged
+            changedTranslations = true
+          }
+        }
+      }
+
+      if (!changedLib && !changedPresets && !changedTranslations) return prev
       return {
         ...prev,
         homebrewLibrary: changedLib ? nextLib : prev.homebrewLibrary,
         effectPresets: changedPresets ? nextPresets : prev.effectPresets,
+        spellTranslations: changedTranslations ? nextTranslations : prev.spellTranslations,
       }
     })
   }, [setAppState])
@@ -311,14 +341,42 @@ function App() {
       const officialDescPt = translated.slice(0, descCount)
       const officialHigherLevelPt = translated.slice(descCount)
 
-      updateCharacter(activeCharacter.id, (c) => ({
-        ...c,
-        spells: c.spells.map((s) =>
-          s.spellIndex === args.spellIndex
-            ? { ...s, officialDescPt, officialHigherLevelPt }
-            : s,
-        ),
-      }))
+      setAppState((prev) => {
+        const activeId = prev.activeCharacterId
+        const prevTranslations = prev.spellTranslations ?? {}
+        const prevT = prevTranslations[args.spellIndex]
+        const merged: SpellTranslation = {
+          namePt: prevT?.namePt,
+          descPt: officialDescPt.length ? officialDescPt : undefined,
+          higherPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
+        }
+        const translationsChanged = JSON.stringify(prevT ?? {}) !== JSON.stringify(merged)
+        const nextTranslations = translationsChanged
+          ? { ...prevTranslations, [args.spellIndex]: merged }
+          : prevTranslations
+
+        const nextCharacters = prev.characters.map((c) => {
+          if (c.id !== activeId) return c
+          return {
+            ...c,
+            spells: c.spells.map((s) =>
+              s.spellIndex === args.spellIndex
+                ? {
+                    ...s,
+                    officialDescPt,
+                    officialHigherLevelPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
+                  }
+                : s,
+            ),
+          }
+        })
+
+        return {
+          ...prev,
+          characters: nextCharacters,
+          spellTranslations: translationsChanged ? nextTranslations : prev.spellTranslations,
+        }
+      })
 
       setTranslateStatus({ kind: 'idle' })
     } catch (err: unknown) {
@@ -335,6 +393,12 @@ function App() {
     if (activeCharacterSpellsSet.has(spellRef.index)) return
 
     if (isHomebrewIndex(spellRef.index)) {
+      await addSpellToActive(spellRef)
+      return
+    }
+
+    const cachedT = spellTranslations[spellRef.index]
+    if (cachedT?.descPt?.length || cachedT?.higherPt?.length || cachedT?.namePt?.trim()) {
       await addSpellToActive(spellRef)
       return
     }
@@ -381,6 +445,18 @@ function App() {
         const preset = (prev.effectPresets ?? {})[detail.index]
         const newSpellWithPreset: AddedSpell = { ...newSpell, effects: cloneEffects(preset) }
 
+        const prevTranslations = prev.spellTranslations ?? {}
+        const prevT = prevTranslations[detail.index]
+        const merged: SpellTranslation = {
+          namePt: prevT?.namePt,
+          descPt: officialDescPt.length ? officialDescPt : undefined,
+          higherPt: officialHigherLevelPt.length ? officialHigherLevelPt : undefined,
+        }
+        const translationsChanged = JSON.stringify(prevT ?? {}) !== JSON.stringify(merged)
+        const nextTranslations = translationsChanged
+          ? { ...prevTranslations, [detail.index]: merged }
+          : prevTranslations
+
         const nextCharacters = prev.characters.map((c) => {
           if (c.id !== activeId) return c
           const nextSpells = [...c.spells, newSpellWithPreset].sort((a, b) => {
@@ -406,7 +482,11 @@ function App() {
           return { ...c, spells: nextSpells }
         })
 
-        return { ...prev, characters: nextCharacters }
+        return {
+          ...prev,
+          characters: nextCharacters,
+          spellTranslations: translationsChanged ? nextTranslations : prev.spellTranslations,
+        }
       })
 
       setTranslateStatus({ kind: 'idle' })
@@ -589,6 +669,27 @@ function App() {
     return [...(spellList ?? []), ...homebrews]
   }, [homebrewLibrary, spellList])
 
+  const spellNameAliases = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    for (const s of availableSpellRefs) {
+      map[s.index] = [s.name]
+    }
+    for (const [idx, t] of Object.entries(spellTranslations)) {
+      if (!t) continue
+      const arr = map[idx] ?? (map[idx] = [])
+      if (t.namePt?.trim()) arr.push(t.namePt.trim())
+    }
+    for (const c of characters) {
+      for (const s of c.spells) {
+        const namePt = s.displayNamePt?.trim()
+        if (!namePt) continue
+        const arr = map[s.spellIndex] ?? (map[s.spellIndex] = [s.spellName])
+        arr.push(namePt)
+      }
+    }
+    return map
+  }, [availableSpellRefs, characters, spellTranslations])
+
   const cloneEffects = useCallback((effects: SpellEffect[] | undefined): SpellEffect[] | undefined => {
     if (!effects) return undefined
     return effects.map((e) => ({
@@ -626,12 +727,20 @@ function App() {
   const unaddedCandidates = useMemo(() => {
     if (!availableSpellRefs.length) return [] as DndApiRef[]
     const q = unaddedSearch.trim().toLowerCase()
-    if (!q) return [] as DndApiRef[]
-    return availableSpellRefs
-      .filter((s) => !activeCharacterSpellsSet.has(s.index))
-      .filter((s) => s.name.toLowerCase().includes(q))
-      .slice(0, 120)
-  }, [activeCharacterSpellsSet, availableSpellRefs, unaddedSearch])
+    const hasFilters =
+      unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
+    if (!q && !hasFilters) return [] as DndApiRef[]
+
+    const base = availableSpellRefs.filter((s) => !activeCharacterSpellsSet.has(s.index))
+    if (!q) return base.slice(0, 200)
+
+    const matches = (idx: string, nameFallback: string) => {
+      const aliases = spellNameAliases[idx] ?? [nameFallback]
+      return aliases.some((n) => n.toLowerCase().includes(q))
+    }
+
+    return base.filter((s) => matches(s.index, s.name)).slice(0, 200)
+  }, [activeCharacterSpellsSet, availableSpellRefs, spellNameAliases, unaddedClassFilter, unaddedLevelFilter, unaddedSchoolFilter, unaddedSearch])
 
   const needsUnaddedDetails =
     unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
@@ -705,6 +814,10 @@ function App() {
       let nextHomebrew = prevHomebrew
       let changedHomebrew = false
 
+      const prevTranslations = prev.spellTranslations ?? {}
+      let nextTranslations = prevTranslations
+      let changedTranslations = false
+
       const nextCharacters = prev.characters.map((c) => {
         if (c.id !== characterId) return c
         const nextC = updater(c)
@@ -718,6 +831,34 @@ function App() {
             if (nextPresets === prevPresets) nextPresets = { ...prevPresets }
             nextPresets[nextSpell.spellIndex] = nextEffects ?? []
             changedPresets = true
+          }
+
+          if (!(nextSpell.homebrew || isHomebrewIndex(nextSpell.spellIndex))) {
+            const prevNamePt = prevSpell?.displayNamePt?.trim() || ''
+            const nextNamePt = nextSpell.displayNamePt?.trim() || ''
+            const prevDescPt = prevSpell?.officialDescPt
+            const nextDescPt = nextSpell.officialDescPt
+            const prevHigherPt = prevSpell?.officialHigherLevelPt
+            const nextHigherPt = nextSpell.officialHigherLevelPt
+
+            const nameChanged = prevNamePt !== nextNamePt
+            const descChanged = JSON.stringify(prevDescPt ?? []) !== JSON.stringify(nextDescPt ?? [])
+            const higherChanged = JSON.stringify(prevHigherPt ?? []) !== JSON.stringify(nextHigherPt ?? [])
+
+            if (nameChanged || descChanged || higherChanged) {
+              const idx = nextSpell.spellIndex
+              const prevT = prevTranslations[idx]
+              const merged: SpellTranslation = {
+                namePt: nextNamePt || prevT?.namePt,
+                descPt: (nextDescPt?.length ? nextDescPt : prevT?.descPt) ?? undefined,
+                higherPt: (nextHigherPt?.length ? nextHigherPt : prevT?.higherPt) ?? undefined,
+              }
+              if (JSON.stringify(prevT ?? {}) !== JSON.stringify(merged)) {
+                if (nextTranslations === prevTranslations) nextTranslations = { ...prevTranslations }
+                nextTranslations[idx] = merged
+                changedTranslations = true
+              }
+            }
           }
 
           if (nextSpell.homebrew) {
@@ -745,6 +886,7 @@ function App() {
         characters: nextCharacters,
         effectPresets: changedPresets ? nextPresets : prev.effectPresets,
         homebrewLibrary: changedHomebrew ? nextHomebrew : prev.homebrewLibrary,
+        spellTranslations: changedTranslations ? nextTranslations : prev.spellTranslations,
       }
     })
   }
@@ -871,7 +1013,14 @@ function App() {
       if (active.spells.some((s) => s.spellIndex === detail.index)) return prev
 
       const preset = (prev.effectPresets ?? {})[detail.index]
-      const newSpellWithPreset: AddedSpell = { ...newSpell, effects: cloneEffects(preset) }
+      const t = (prev.spellTranslations ?? {})[detail.index]
+      const newSpellWithPreset: AddedSpell = {
+        ...newSpell,
+        effects: cloneEffects(preset),
+        displayNamePt: t?.namePt?.trim() || undefined,
+        officialDescPt: t?.descPt?.length ? t.descPt : undefined,
+        officialHigherLevelPt: t?.higherPt?.length ? t.higherPt : undefined,
+      }
 
       const nextCharacters = prev.characters.map((c) => {
         if (c.id !== activeId) return c
@@ -1936,6 +2085,7 @@ function App() {
             translateStatus={translateStatus}
             getSpellDetails={getSpellFromBaseOrApi}
             homebrewLibrary={homebrewLibrary}
+            spellTranslations={spellTranslations}
           />
         </section>
       </main>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Character, DndSpell, HomebrewSpell, SpellEffect } from '../types'
+import type { Character, DndSpell, HomebrewSpell, SpellEffect, SpellTranslation } from '../types'
 import { readLocalStorageJson, writeLocalStorageJson } from './storage'
 
 export type AppStateV1 = {
@@ -15,6 +15,9 @@ export type AppStateV1 = {
 
   /** Optional: reusable homebrew spell definitions keyed by hb:... index (synced across devices). */
   homebrewLibrary?: Record<string, HomebrewSpell>
+
+  /** Optional: cached translations for official spells (synced across devices). */
+  spellTranslations?: Record<string, SpellTranslation>
 }
 
 const LOCAL_STATE_KEY = 'dndmm.appState.v1'
@@ -35,6 +38,7 @@ function defaultState(): AppStateV1 {
     spellCache: {},
     effectPresets: {},
     homebrewLibrary: {},
+    spellTranslations: {},
   }
 }
 
