@@ -77,6 +77,7 @@ export function AddedSpellsCard(props: {
   filteredAddedSpells: AddedSpell[]
   spellDetails: Record<string, DndSpell | undefined>
   spellDetailsError: Record<string, string | undefined>
+  ensureSpellDetailsLoaded: (index: string, signal?: AbortSignal) => Promise<void>
   preparedMeta: PreparedMeta
 
   addedNameFilter: string
@@ -110,6 +111,7 @@ export function AddedSpellsCard(props: {
     filteredAddedSpells,
     spellDetails,
     spellDetailsError,
+    ensureSpellDetailsLoaded,
     preparedMeta,
     addedNameFilter,
     setAddedNameFilter,
@@ -746,6 +748,7 @@ export function AddedSpellsCard(props: {
                           <button
                             className="w-full text-left"
                             onClick={() => {
+                              if (!entry.homebrew) void ensureSpellDetailsLoaded(entry.spellIndex)
                               setOpenSpellIndex((prev) =>
                                 prev === entry.spellIndex ? null : entry.spellIndex,
                               )
@@ -828,6 +831,7 @@ export function AddedSpellsCard(props: {
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setOpenMaterialSpellIndex(null)
+                                if (!entry.homebrew) void ensureSpellDetailsLoaded(entry.spellIndex)
                                 setOpenDetailsSpellIndex(entry.spellIndex)
                               }}
                               title="Abrir dano e detalhes"
@@ -874,6 +878,7 @@ export function AddedSpellsCard(props: {
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setOpenMaterialSpellIndex(null)
+                                    if (!entry.homebrew) void ensureSpellDetailsLoaded(entry.spellIndex)
                                     setOpenDetailsSpellIndex((prev) => (prev === entry.spellIndex ? null : entry.spellIndex))
                                   }}
                                   title={isDetailsOpen ? 'Ocultar detalhes' : 'Ver detalhes'}

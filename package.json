@@ -4,12 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-spells-json.mjs",
     "dev": "vite",
     "dev:vite": "vite",
     "dev:vercel": "vercel dev",
+    "prebuild": "node scripts/build-spells-json.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "spells:fetch": "node scripts/build-spells-json.mjs --force"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

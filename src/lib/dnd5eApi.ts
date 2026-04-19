@@ -17,6 +17,13 @@ const SPELL_DETAIL_PREFIX = 'dndmm.cache.spellDetail.v1.'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
+const SPELL_DETAIL_MAX_AGE_MS = 30 * ONE_DAY_MS
+
+export function readCachedSpellDetail(index: string): DndSpell | undefined {
+  const key = `${SPELL_DETAIL_PREFIX}${index}`
+  return readCachedLocalStorage<DndSpell>(key, SPELL_DETAIL_MAX_AGE_MS)
+}
+
 export async function listSpells(signal?: AbortSignal): Promise<DndApiRef[]> {
   const cached = readCachedLocalStorage<SpellListResponse>(SPELL_LIST_KEY, 7 * ONE_DAY_MS)
   if (cached) return cached.results
@@ -27,7 +34,7 @@ export async function listSpells(signal?: AbortSignal): Promise<DndApiRef[]> {
 
 export async function getSpell(index: string, signal?: AbortSignal): Promise<DndSpell> {
   const key = `${SPELL_DETAIL_PREFIX}${index}`
-  const cached = readCachedLocalStorage<DndSpell>(key, 30 * ONE_DAY_MS)
+  const cached = readCachedLocalStorage<DndSpell>(key, SPELL_DETAIL_MAX_AGE_MS)
   if (cached) return cached
   const data = await fetchJson<DndSpell>(`${API_BASE}/api/spells/${index}`, signal)
   writeCachedLocalStorage(key, data)

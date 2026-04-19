@@ -13,7 +13,7 @@ import type {
   SpellCastTimeKind,
   SpellTranslation,
 } from './types'
-import { getSpell, listSpells } from './lib/dnd5eApi'
+import { loadSpellDb, spellDbToList } from './lib/spellDb'
 import {
   ABILITIES,
   abilityModifier,
@@ -127,32 +127,32 @@ function App() {
     return true
   }
 
-  const writeSpellToBaseCache = useCallback(
-    (spell: DndSpell) => {
-      setAppState((prev) => {
-        const prevCache = prev.spellCache ?? {}
-        if (prevCache[spell.index]) return prev
-        return { ...prev, spellCache: { ...prevCache, [spell.index]: spell } }
-      })
-    },
-    [setAppState],
-  )
-
-  const getSpellFromBaseOrApi = useCallback(
-    async (index: string, signal?: AbortSignal): Promise<DndSpell> => {
-      const cached = spellCache[index]
-      if (cached) return cached
-      const spell = await getSpell(index, signal)
-      writeSpellToBaseCache(spell)
-      return spell
-    },
-    [spellCache, writeSpellToBaseCache],
-  )
-
   const [spellList, setSpellList] = useState<DndApiRef[] | null>(null)
   const [spellListError, setSpellListError] = useState<string | null>(null)
   const [spellDetails, setSpellDetails] = useState<Record<string, DndSpell | undefined>>({})
   const [spellDetailsError, setSpellDetailsError] = useState<Record<string, string | undefined>>({})
+
+  const ensureSpellDetailsLoaded = useCallback(
+    async (): Promise<void> => {
+      // No-op: spell details are preloaded from /spells.v1.json (single request at startup).
+    },
+    [],
+  )
+
+  const getSpellDetailsLocal = useCallback(
+    async (index: string, signal?: AbortSignal): Promise<DndSpell> => {
+      if (signal?.aborted) throw new Error('Aborted')
+      if (isHomebrewIndex(index)) throw new Error('Homebrew spell has no official details')
+
+      const spell = spellDetails[index] ?? spellCache[index]
+      if (spell) return spell
+
+      throw new Error(
+        'Detalhes da magia não carregados. Gere /public/spells.v1.json com `npm run spells:fetch` e recarregue a página.',
+      )
+    },
+    [spellCache, spellDetails],
+  )
 
   useEffect(() => {
     // Bootstrap: if characters already contain homebrew spells, ensure they are also
@@ -405,7 +405,7 @@ function App() {
 
     setTranslateStatus({ kind: 'loading', spellIndex: spellRef.index })
     try {
-      const detail = await getSpellFromBaseOrApi(spellRef.index)
+      const detail = await getSpellDetailsLocal(spellRef.index)
       setSpellDetails((prev) => ({ ...prev, [detail.index]: detail }))
 
       const characterClasses = activeCharacter.classes
@@ -500,46 +500,31 @@ function App() {
   }
 
   useEffect(() => {
-    const controller = new AbortController()
-    listSpells(controller.signal)
-      .then((results) => {
-        setSpellList(results)
+    let alive = true
+    loadSpellDb()
+      .then((payload) => {
+        if (!alive) return
+        const spells = payload.spells ?? {}
+        // Merge in any previously-synced cache entries as a fallback, without fetching.
+        const merged = { ...spellCache, ...spells }
+        setSpellDetails(merged)
+        setSpellDetailsError({})
+        setSpellList(spellDbToList(merged))
         setSpellListError(null)
       })
       .catch((err: unknown) => {
-        setSpellListError(err instanceof Error ? err.message : 'Failed to load spell list')
+        if (!alive) return
+        setSpellListError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load local spell DB (/spells.v1.json). Run: npm run spells:fetch',
+        )
+        setSpellList(null)
       })
-    return () => controller.abort()
-  }, [])
-
-  useEffect(() => {
-    if (!activeCharacter) return
-    const controller = new AbortController()
-    const indices = activeCharacter.spells
-      .filter((s) => !(s.homebrew || isHomebrewIndex(s.spellIndex)))
-      .map((s) => s.spellIndex)
-    for (const index of indices) {
-      const fromBase = spellCache[index]
-      if (fromBase && !spellDetails[index]) {
-        setSpellDetails((prev) => ({ ...prev, [index]: fromBase }))
-        setSpellDetailsError((prev) => ({ ...prev, [index]: undefined }))
-        continue
-      }
-      if (spellDetails[index] || spellDetailsError[index]) continue
-      getSpellFromBaseOrApi(index, controller.signal)
-        .then((spell) => {
-          setSpellDetails((prev) => ({ ...prev, [index]: spell }))
-          setSpellDetailsError((prev) => ({ ...prev, [index]: undefined }))
-        })
-        .catch((err: unknown) => {
-          setSpellDetailsError((prev) => ({
-            ...prev,
-            [index]: err instanceof Error ? err.message : 'Failed to load spell details',
-          }))
-        })
+    return () => {
+      alive = false
     }
-    return () => controller.abort()
-  }, [activeCharacter, getSpellFromBaseOrApi, spellCache, spellDetails, spellDetailsError])
+  }, [])
 
   const activeCharacterTotalLevel = useMemo(() => {
     if (!activeCharacter) return 1
@@ -769,28 +754,11 @@ function App() {
     unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
 
   useEffect(() => {
+    // Intentionally disabled: filtering unadded spells by level/school/class would
+    // require fetching many spell details. We avoid mass API calls to prevent rate limiting.
+    // Unadded filters will only match spells already present in the local/remote cache.
     if (!needsUnaddedDetails) return
-
-    const controller = new AbortController()
-    const signal = controller.signal
-
-    void (async () => {
-      for (const s of unaddedCandidates.slice(0, 60)) {
-        if (signal.aborted) return
-        if (isHomebrewIndex(s.index)) continue
-        if (spellCache[s.index]) continue
-        try {
-          await getSpellFromBaseOrApi(s.index, signal)
-        } catch (e) {
-          if (signal.aborted) return
-          // Ignore transient fetch errors here; user can still add by name.
-          console.warn('Failed to fetch spell details for filters', s.index, e)
-        }
-      }
-    })()
-
-    return () => controller.abort()
-  }, [getSpellFromBaseOrApi, needsUnaddedDetails, spellCache, unaddedCandidates])
+  }, [needsUnaddedDetails])
 
   const unaddedResults = useMemo(() => {
     if (!unaddedCandidates.length) return [] as DndApiRef[]
@@ -1007,7 +975,7 @@ function App() {
       return
     }
 
-    const detail = await getSpellFromBaseOrApi(spellRef.index)
+    const detail = await getSpellDetailsLocal(spellRef.index)
     setSpellDetails((prev) => ({ ...prev, [detail.index]: detail }))
 
     const characterClasses = activeCharacter.classes
@@ -2068,6 +2036,7 @@ function App() {
             filteredAddedSpells={filteredAddedSpells}
             spellDetails={spellDetails}
             spellDetailsError={spellDetailsError}
+            ensureSpellDetailsLoaded={ensureSpellDetailsLoaded}
             preparedMeta={preparedMeta}
             addedNameFilter={addedNameFilter}
             setAddedNameFilter={setAddedNameFilter}
@@ -2106,7 +2075,7 @@ function App() {
             addSpellToActive={addSpellToActive}
             addSpellToActiveTranslated={addSpellToActiveTranslated}
             translateStatus={translateStatus}
-            getSpellDetails={getSpellFromBaseOrApi}
+            getSpellDetails={getSpellDetailsLocal}
             homebrewLibrary={homebrewLibrary}
             spellTranslations={spellTranslations}
           />
