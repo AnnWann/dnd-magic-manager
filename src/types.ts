@@ -18,8 +18,11 @@ export type SpellEffectTarget =
   | 'condition'
   | 'economy'
   | 'conditionalDamage'
+  | 'rollDice'
 
 export type SpellEffectMode = 'add' | 'sub' | 'set' | 'adv' | 'dis' | 'apply' | 'remove'
+
+export type RollEffectApplyTo = 'attack' | 'save' | 'skill'
 
 export type ActionEconomyKey =
   | 'action'
@@ -42,6 +45,8 @@ export type ConditionKey =
 export interface SpellEffect {
   target: SpellEffectTarget
   mode: SpellEffectMode
+  rollDice?: string
+  rollAppliesTo?: RollEffectApplyTo[]
   /** Numeric value for add/set modes. */
   value?: number
   /** Optional: used when target is attack/save/ability. */

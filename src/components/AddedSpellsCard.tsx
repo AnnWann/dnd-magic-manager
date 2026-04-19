@@ -159,6 +159,7 @@ export function AddedSpellsCard(props: {
     { value: 'condition', label: 'Condição' },
     { value: 'economy', label: 'Remover (ações)' },
     { value: 'conditionalDamage', label: 'Dano condicional' },
+    { value: 'rollDice', label: 'Dado em rolagens' },
   ]
 
   const conditionOptions: Array<{ value: ConditionKey; label: string }> = [
@@ -191,6 +192,7 @@ export function AddedSpellsCard(props: {
   const modeOptionsForTarget = (t: SpellEffectTarget): SpellEffectMode[] => {
     if (t === 'condition') return ['apply']
     if (t === 'conditionalDamage') return ['apply']
+    if (t === 'rollDice') return ['apply']
     if (t === 'economy') return ['remove']
     if (t === 'ability') return ['add', 'sub', 'set']
     if (t === 'ac' || t === 'speed' || t === 'initiative') return ['add', 'sub', 'set']
@@ -230,7 +232,7 @@ export function AddedSpellsCard(props: {
       if (!m) return null
       const count = Number(m[1])
       const size = Number(m[2])
-      if (!Number.isFinite(count) || !Number.isFinite(size) || count <= 0 || size <= 0) return null
+      if (!Number.isFinite(count) || !Number.isFinite(size) || count < 0 || size <= 0) return null
       return { count, size }
     }
 
@@ -270,6 +272,16 @@ export function AddedSpellsCard(props: {
         })()
 
         return when ? `Dano (${when}): ${scaled}` : `Dano cond.: ${scaled}`
+      }
+
+      if (eff.target === 'rollDice') {
+        const dice = eff.rollDice?.trim() ? eff.rollDice.trim() : undefined
+        const applies = eff.rollAppliesTo ?? []
+        const labels = applies
+          .map((k) => (k === 'attack' ? 'ATQ' : k === 'save' ? 'TR' : 'Perícia'))
+          .join('/')
+        const where = labels ? ` (${labels})` : ''
+        return `Dado${where}: ${dice ?? '—'}`
       }
 
       if (eff.target !== 'condition') return null
@@ -1404,8 +1416,9 @@ export function AddedSpellsCard(props: {
                                             const needsCondition = target === 'condition'
                                             const needsEconomy = target === 'economy'
                                             const needsConditionalDamage = target === 'conditionalDamage'
+                                            const needsRollDice = target === 'rollDice'
 
-                                            const gridColsMd = needsConditionalDamage
+                                            const gridColsMd = needsConditionalDamage || needsRollDice
                                               ? 'md:grid-cols-[170px_140px_1fr_1fr_96px]'
                                               : needsAbility || needsCondition || needsEconomy
                                                 ? 'md:grid-cols-[170px_140px_160px_1fr_96px]'
@@ -1460,6 +1473,14 @@ export function AddedSpellsCard(props: {
                                                             damageDice:
                                                               nextTarget === 'conditionalDamage'
                                                                 ? (prev.damageDice ?? '1d6')
+                                                                : undefined,
+                                                            rollDice:
+                                                              nextTarget === 'rollDice'
+                                                                ? (prev.rollDice ?? '1d4')
+                                                                : undefined,
+                                                            rollAppliesTo:
+                                                              nextTarget === 'rollDice'
+                                                                ? (prev.rollAppliesTo ?? ['attack'])
                                                                 : undefined,
                                                             value:
                                                               nextTarget === 'condition' || nextTarget === 'economy' || nextMode === 'adv' || nextMode === 'dis' || nextMode === 'apply' || nextMode === 'remove'
@@ -1608,6 +1629,100 @@ export function AddedSpellsCard(props: {
                                                           }))
                                                         }}
                                                         placeholder="ex: 2d6"
+                                                      />
+                                                    </div>
+                                                  </>
+                                                ) : needsRollDice ? (
+                                                  <>
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Aplica em</label>
+                                                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-text">
+                                                        <label className="flex items-center gap-2">
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={(eff.rollAppliesTo ?? []).includes('attack')}
+                                                            onChange={(e) => {
+                                                              const set = new Set(eff.rollAppliesTo ?? [])
+                                                              if (e.target.checked) set.add('attack')
+                                                              else set.delete('attack')
+                                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                                ...c,
+                                                                spells: c.spells.map((s) => {
+                                                                  if (s.spellIndex !== entry.spellIndex) return s
+                                                                  const effects = [...(s.effects ?? [])]
+                                                                  effects[idx] = { ...effects[idx], rollAppliesTo: Array.from(set) }
+                                                                  return { ...s, effects }
+                                                                }),
+                                                              }))
+                                                            }}
+                                                          />
+                                                          ATQ
+                                                        </label>
+
+                                                        <label className="flex items-center gap-2">
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={(eff.rollAppliesTo ?? []).includes('save')}
+                                                            onChange={(e) => {
+                                                              const set = new Set(eff.rollAppliesTo ?? [])
+                                                              if (e.target.checked) set.add('save')
+                                                              else set.delete('save')
+                                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                                ...c,
+                                                                spells: c.spells.map((s) => {
+                                                                  if (s.spellIndex !== entry.spellIndex) return s
+                                                                  const effects = [...(s.effects ?? [])]
+                                                                  effects[idx] = { ...effects[idx], rollAppliesTo: Array.from(set) }
+                                                                  return { ...s, effects }
+                                                                }),
+                                                              }))
+                                                            }}
+                                                          />
+                                                          TR
+                                                        </label>
+
+                                                        <label className="flex items-center gap-2">
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={(eff.rollAppliesTo ?? []).includes('skill')}
+                                                            onChange={(e) => {
+                                                              const set = new Set(eff.rollAppliesTo ?? [])
+                                                              if (e.target.checked) set.add('skill')
+                                                              else set.delete('skill')
+                                                              updateCharacter(activeCharacter.id, (c) => ({
+                                                                ...c,
+                                                                spells: c.spells.map((s) => {
+                                                                  if (s.spellIndex !== entry.spellIndex) return s
+                                                                  const effects = [...(s.effects ?? [])]
+                                                                  effects[idx] = { ...effects[idx], rollAppliesTo: Array.from(set) }
+                                                                  return { ...s, effects }
+                                                                }),
+                                                              }))
+                                                            }}
+                                                          />
+                                                          Perícia
+                                                        </label>
+                                                      </div>
+                                                    </div>
+
+                                                    <div>
+                                                      <label className="text-[11px] text-text">Dado (NdN)</label>
+                                                      <Input
+                                                        className="mt-1 h-9"
+                                                        value={eff.rollDice ?? ''}
+                                                        onChange={(e) => {
+                                                          const rollDice = e.target.value || undefined
+                                                          updateCharacter(activeCharacter.id, (c) => ({
+                                                            ...c,
+                                                            spells: c.spells.map((s) => {
+                                                              if (s.spellIndex !== entry.spellIndex) return s
+                                                              const effects = [...(s.effects ?? [])]
+                                                              effects[idx] = { ...effects[idx], rollDice }
+                                                              return { ...s, effects }
+                                                            }),
+                                                          }))
+                                                        }}
+                                                        placeholder="ex: 1d4"
                                                       />
                                                     </div>
                                                   </>
