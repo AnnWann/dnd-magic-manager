@@ -703,17 +703,40 @@ function App() {
     // apply the preset for reuse across characters.
     setAppState((prev) => {
       const presets = prev.effectPresets ?? {}
-      if (!Object.keys(presets).length) return prev
+      const translations = prev.spellTranslations ?? {}
+      const hasPresets = Object.keys(presets).length > 0
+      const hasTranslations = Object.keys(translations).length > 0
+      if (!hasPresets && !hasTranslations) return prev
 
       let changed = false
       const nextCharacters = prev.characters.map((c) => {
         let spellsChanged = false
         const nextSpells = c.spells.map((s) => {
-          if (s.effects !== undefined) return s
-          const preset = presets[s.spellIndex]
-          if (!preset || preset.length === 0) return s
-          spellsChanged = true
-          return { ...s, effects: cloneEffects(preset) }
+          let next = s
+
+          if (s.effects === undefined) {
+            const preset = presets[s.spellIndex]
+            if (preset && preset.length) {
+              next = { ...next, effects: cloneEffects(preset) }
+            }
+          }
+
+          if (!(s.homebrew || isHomebrewIndex(s.spellIndex))) {
+            const t = translations[s.spellIndex]
+            if (t) {
+              const patch: Partial<AddedSpell> = {}
+              if (!next.displayNamePt?.trim() && t.namePt?.trim()) patch.displayNamePt = t.namePt.trim()
+              if (!next.officialDescPt?.length && t.descPt?.length) patch.officialDescPt = t.descPt
+              if (!next.officialHigherLevelPt?.length && t.higherPt?.length) patch.officialHigherLevelPt = t.higherPt
+
+              if (Object.keys(patch).length) {
+                next = { ...next, ...patch }
+              }
+            }
+          }
+
+          if (next !== s) spellsChanged = true
+          return next
         })
         if (!spellsChanged) return c
         changed = true

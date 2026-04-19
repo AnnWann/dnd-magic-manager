@@ -68,6 +68,11 @@ export function AddSpellsCard(props: {
     return homebrewLibrary[openDescIndex] ?? null
   }, [homebrewLibrary, openDescIndex])
 
+  const openDescTranslation = useMemo(() => {
+    if (!openDescIndex || openDescIndex.startsWith('hb:')) return null
+    return spellTranslations[openDescIndex] ?? null
+  }, [openDescIndex, spellTranslations])
+
   useEffect(() => {
     if (!openDescIndex) return
     if (showDescMode !== 'on') {
@@ -316,9 +321,7 @@ export function AddSpellsCard(props: {
                             <td colSpan={4} className="p-3">
                               <div className="text-xs font-semibold text-textH">Descrição</div>
                               <div className="mt-2 space-y-2 text-sm text-text">
-                                {openDescLoading ? (
-                                  <div className="text-xs text-text">Carregando…</div>
-                                ) : openDescError ? (
+                                {openDescError ? (
                                   <div className="text-xs text-text">{openDescError}</div>
                                 ) : openDescHomebrew ? (
                                   <>
@@ -342,22 +345,63 @@ export function AddSpellsCard(props: {
                                       </div>
                                     ) : null}
                                   </>
-                                ) : openDescSpell ? (
+                                ) : (openDescTranslation?.descPt?.length || openDescTranslation?.higherPt?.length) ? (
                                   <>
-                                    {(openDescSpell.desc ?? []).map((p, i) => (
+                                    {(openDescTranslation?.descPt ?? []).map((p, i) => (
                                       <p key={i}>
                                         <InlineMarkdown text={p} />
                                       </p>
                                     ))}
-                                    {!(openDescSpell.desc?.length) ? (
+                                    {!(openDescTranslation?.descPt?.length) ? (
                                       <div className="text-xs text-text">—</div>
                                     ) : null}
 
-                                    {openDescSpell.higher_level?.length ? (
+                                    {openDescTranslation?.higherPt?.length ? (
                                       <div className="mt-3 rounded-lg border border-border bg-bg p-3">
                                         <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
                                         <div className="mt-2 space-y-2 text-sm text-text">
-                                          {(openDescSpell.higher_level ?? []).map((p, i) => (
+                                          {(openDescTranslation.higherPt ?? []).map((p, i) => (
+                                            <p key={i}>
+                                              <InlineMarkdown text={p} />
+                                            </p>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </>
+                                ) : openDescLoading ? (
+                                  <div className="text-xs text-text">Carregando…</div>
+                                ) : openDescSpell ? (
+                                  <>
+                                    {(
+                                      (openDescTranslation?.descPt?.length
+                                        ? openDescTranslation.descPt
+                                        : openDescSpell.desc ?? [])
+                                    ).map((p, i) => (
+                                      <p key={i}>
+                                        <InlineMarkdown text={p} />
+                                      </p>
+                                    ))}
+                                    {!((openDescTranslation?.descPt?.length
+                                      ? openDescTranslation.descPt
+                                      : openDescSpell.desc
+                                    )?.length) ? (
+                                      <div className="text-xs text-text">—</div>
+                                    ) : null}
+
+                                    {(
+                                      (openDescTranslation?.higherPt?.length
+                                        ? openDescTranslation.higherPt
+                                        : openDescSpell.higher_level ?? [])
+                                    ).length ? (
+                                      <div className="mt-3 rounded-lg border border-border bg-bg p-3">
+                                        <div className="text-xs font-semibold text-textH">Em níveis superiores</div>
+                                        <div className="mt-2 space-y-2 text-sm text-text">
+                                          {(
+                                            openDescTranslation?.higherPt?.length
+                                              ? openDescTranslation.higherPt
+                                              : openDescSpell.higher_level ?? []
+                                          ).map((p, i) => (
                                             <p key={i}>
                                               <InlineMarkdown text={p} />
                                             </p>
