@@ -1077,11 +1077,32 @@ export function AddedSpellsCard(props: {
                       ) : null}
 
                       {isOpen ? (
-                        <tr className="border-t border-border">
+                        <tr className="h-0">
                           <td className="p-0" colSpan={10}>
-                            <div className="sticky left-0 z-10 w-[100vw] max-w-[100vw] bg-bg md:static md:w-auto md:max-w-none">
-                              <div className="p-3">
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_minmax(0,1fr)]">
+                            <div
+                              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                              onClick={() => setOpenSpellIndex(null)}
+                              role="presentation"
+                            >
+                              <div
+                                className="w-full max-w-[980px] rounded-xl border border-border bg-bg bg-[color:color-mix(in_srgb,var(--bg)_96%,transparent)] backdrop-blur-sm shadow-theme"
+                                onClick={(e) => e.stopPropagation()}
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label="Descrição / modificadores / headcanon"
+                              >
+                                <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-textH break-words">{displayName}</div>
+                                    <div className="mt-1 text-xs text-text">Descrição / modificadores / headcanon</div>
+                                  </div>
+                                  <Button size="sm" variant="secondary" onClick={() => setOpenSpellIndex(null)}>
+                                    Fechar
+                                  </Button>
+                                </div>
+
+                                <div className="max-h-[80svh] overflow-y-auto p-4">
+                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[320px_minmax(0,1fr)]">
                               <div>
                                 <div className="text-xs font-semibold text-textH">Nome em português</div>
                                 <div className="mt-1 text-xs text-text">Opcional. Se preenchido, aparece na lista.</div>
@@ -1601,14 +1622,14 @@ export function AddedSpellsCard(props: {
                                         <div>
                                           <div className="text-xs font-semibold text-textH">Descrição (API)</div>
                                           <div className="mt-2">
-                                            <div className="flex items-center justify-between gap-2">
-                                              <div className="text-xs text-text">
+                                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                              <div className="min-w-0 text-xs text-text">
                                                 {entry.officialDescPt?.length
                                                   ? 'Traduzido (PT-BR)'
                                                   : 'Original (EN)'}
                                               </div>
 
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex flex-wrap items-center gap-2 md:justify-end">
                                                 {translateStatus.kind === 'error' &&
                                                 translateStatus.spellIndex === entry.spellIndex ? (
                                                   <div className="text-[11px] text-text">
@@ -2363,6 +2384,7 @@ export function AddedSpellsCard(props: {
                                   </div>
                                 )}
                               </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
