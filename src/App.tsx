@@ -238,7 +238,7 @@ function App() {
   const [addedClassFilter, setAddedClassFilter] = useState<string>('any')
   const [addedPreparedFilter, setAddedPreparedFilter] = useState<'any' | 'prepared' | 'notPrepared'>('any')
 
-  const [hideUa, setHideUa] = useState(true)
+  const [hideUa, setHideUa] = useState(false)
 
   const [unaddedSearch, setUnaddedSearch] = useState('')
 
@@ -608,9 +608,7 @@ function App() {
   const filteredAddedSpells = useMemo(() => {
     if (!activeCharacter) return []
     const nameQ = addedNameFilter.trim().toLowerCase()
-    const isUa = (name: string) => name.toLowerCase().includes('(ua)')
     const filtered = activeCharacter.spells.filter((entry) => {
-      if (hideUa && isUa(entry.displayNamePt?.trim() || entry.spellName)) return false
       if (nameQ) {
         const hay = `${entry.displayNamePt?.trim() || ''} ${entry.spellName}`.toLowerCase()
         if (!hay.includes(nameQ)) return false
@@ -670,7 +668,7 @@ function App() {
 
       return a.spellIndex.localeCompare(b.spellIndex)
     })
-  }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, hideUa, spellDetails, preparedMeta])
+  }, [activeCharacter, addedClassFilter, addedLevelFilter, addedNameFilter, addedPreparedFilter, addedSchoolFilter, spellDetails, preparedMeta])
 
   const availableSpellRefs = useMemo((): DndApiRef[] => {
     const homebrews: DndApiRef[] = Object.entries(homebrewLibrary).map(([index, hb]) => ({
@@ -766,10 +764,7 @@ function App() {
       unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
     if (!q && !hasFilters) return [] as DndApiRef[]
 
-    const isUa = (name: string) => name.toLowerCase().includes('(ua)')
-    const base = availableSpellRefs
-      .filter((s) => !activeCharacterSpellsSet.has(s.index))
-      .filter((s) => (hideUa ? !isUa(s.name) : true))
+    const base = availableSpellRefs.filter((s) => !activeCharacterSpellsSet.has(s.index))
     if (!q) return base.slice(0, 200)
 
     const matches = (idx: string, nameFallback: string) => {
@@ -778,7 +773,7 @@ function App() {
     }
 
     return base.filter((s) => matches(s.index, s.name)).slice(0, 200)
-  }, [activeCharacterSpellsSet, availableSpellRefs, hideUa, spellNameAliases, unaddedClassFilter, unaddedLevelFilter, unaddedSchoolFilter, unaddedSearch])
+  }, [activeCharacterSpellsSet, availableSpellRefs, spellNameAliases, unaddedClassFilter, unaddedLevelFilter, unaddedSchoolFilter, unaddedSearch])
 
   const needsUnaddedDetails =
     unaddedLevelFilter !== 'any' || unaddedSchoolFilter !== 'any' || unaddedClassFilter !== 'any'
@@ -1261,7 +1256,7 @@ function App() {
   return (
     <div className="min-h-svh bg-[color:var(--social-bg)] text-text">
       <header className="border-b border-accentBorder bg-accentBg">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="flex w-full items-center justify-between px-4 py-3">
           <div>
             <h1 className="font-heading text-xl text-textH">Gerenciador de Magias (D&amp;D)</h1>
             <p className="text-xs text-text">Personagens • Magias adicionadas • Filtros • Cálculo</p>
@@ -1279,7 +1274,7 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-6 md:grid-cols-[320px_minmax(0,1fr)]">
+      <main className="grid w-full grid-cols-1 gap-4 px-4 py-6 md:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="min-w-0 space-y-3">
           <Card>
             <CardHeader>

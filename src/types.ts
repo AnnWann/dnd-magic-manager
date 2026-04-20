@@ -2,6 +2,10 @@ export type Ability = 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
 
 export type ProficiencyMode = 'totalLevel' | 'classLevel'
 
+export type RestResetKind = 'longRest' | 'shortRest'
+
+export type PrimaryRollDisplayMode = 'auto' | 'custom' | 'save' | 'attack' | 'damage'
+
 export type MagicCircleLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 export type SpellCastTimeKind = 'action' | 'bonus' | 'reaction'
@@ -143,19 +147,6 @@ export interface SpellSlotUsage {
   pactUsed?: number
 }
 
-export type RestResetKind = 'longRest' | 'shortRest'
-
-export type PrimaryRollDisplayMode = 'auto' | 'save' | 'attack' | 'damage' | 'custom'
-
-export interface SpellFreeUses {
-  /** Total free uses available before a reset (e.g. 1/day). */
-  max: number
-  /** How many of those free uses have already been spent. */
-  used?: number
-  /** When these uses reset. Defaults to 'longRest'. */
-  reset?: RestResetKind
-}
-
 export interface AddedSpell {
   spellIndex: string
   spellName: string
@@ -191,6 +182,18 @@ export interface AddedSpell {
   /** Optional: whether this spell is currently prepared (when applicable) */
   prepared?: boolean
 
+  /** Optional: number of free uses for this spell (does not spend a slot). */
+  freeUses?: {
+    max: number
+    used?: number
+    reset?: RestResetKind
+  }
+
+  /** Optional: override how the main "roll" label is displayed in the UI. */
+  primaryRollMode?: PrimaryRollDisplayMode
+  /** Optional: custom label when primaryRollMode === 'custom'. */
+  primaryRollCustom?: string
+
   /** Optional: per-spell UI overrides to hide auto-generated badges/labels. */
   hideAutoSaveBadges?: boolean
   hideAutoAttackBadges?: boolean
@@ -199,17 +202,9 @@ export interface AddedSpell {
   /** Optional: per-character override for the material components text shown in the V/S/M tooltip. */
   materialOverride?: string
 
-  /** Optional: manual override for the main label shown in the "Dano / detalhes" column. */
-  primaryRollMode?: PrimaryRollDisplayMode
-  /** Optional: custom text shown when primaryRollMode === 'custom'. */
-  primaryRollCustom?: string
-
   /** Optional: cached translation of the official API description (PT-BR) */
   officialDescPt?: string[]
   officialHigherLevelPt?: string[]
-
-  /** Optional: free casts/uses for this specific spell (e.g. Fey Touched). */
-  freeUses?: SpellFreeUses
 
   /** Optional: homebrew spell definition (when spellIndex starts with "hb:") */
   homebrew?: HomebrewSpell
@@ -226,10 +221,10 @@ export interface Character {
   /** Optional: per-character tracker for spell slot usage. */
   slotUsage?: SpellSlotUsage
 
-  /** Optional: Sorcerer resource tracker (used sorcery points; max is based on Sorcerer level). */
+  /** Optional: per-character tracker for Sorcerer sorcery points usage. */
   sorceryPointsUsed?: number
 
-  /** Optional: Sorcerer metamagic picks (IDs from /public/metamagics.v1.json). */
+  /** Optional: selected metamagic option IDs for Sorcerer characters. */
   metamagics?: string[]
 }
 
