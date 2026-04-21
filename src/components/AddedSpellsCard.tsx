@@ -515,8 +515,8 @@ export function AddedSpellsCard(props: {
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="space-y-3">
+          <div className="min-w-0">
             <div className="text-sm font-semibold text-textH">Magias adicionadas</div>
             <div className="mt-1 text-xs text-text">Aqui aparecem apenas as magias adicionadas.</div>
             {preparedClasses.length ? (
@@ -549,7 +549,7 @@ export function AddedSpellsCard(props: {
                         </div>
                       ) : null}
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex gap-2">
                         {Array.from({ length: 9 }, (_, i) => i + 1).map((lvl) => {
                           const total = slotMeta.slotsByLevel[lvl] ?? 0
                           if (!total) return null
@@ -1114,7 +1114,7 @@ export function AddedSpellsCard(props: {
               </div>
             ) : null}
           </div>
-          <div className="text-xs text-text">{activeCharacter.spells.length} no total</div>
+          <div className="text-right text-xs text-text">{activeCharacter.spells.length} no total</div>
         </div>
       </CardHeader>
       <CardContent>
