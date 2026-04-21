@@ -26,6 +26,21 @@ export function SlotsResources(props: {
     updateCharacter,
   } = props
 
+  const resetFreeUsesForRest = (spells: Character['spells'], kind: RestResetKind): Character['spells'] => {
+    return spells.map((s) => {
+      const fu = s.freeUses
+      if (!fu) return s
+
+      const reset = (fu.reset ?? 'longRest') as RestResetKind
+      const shouldReset = kind === 'longRest' ? reset === 'longRest' || reset === 'shortRest' : reset === 'shortRest'
+      if (!shouldReset) return s
+
+      const used = typeof fu.used === 'number' && Number.isFinite(fu.used) ? Math.max(0, Math.trunc(fu.used)) : 0
+      if (used === 0) return s
+      return { ...s, freeUses: { ...fu, used: 0 } }
+    })
+  }
+
   return (
     <>
       <div className="text-xs font-semibold text-textH">Slots</div>
@@ -138,18 +153,7 @@ export function SlotsResources(props: {
                       onClick={() => {
                         updateCharacter(activeCharacter.id, (c) => {
                           const prev = c.slotUsage ?? {}
-                          const nextSpells = c.spells.map((s) => {
-                            const fu = s.freeUses
-                            if (!fu) return s
-                            const reset = (fu.reset ?? 'longRest') as RestResetKind
-                            if (reset !== 'shortRest') return s
-                            const used =
-                              typeof fu.used === 'number' && Number.isFinite(fu.used)
-                                ? Math.max(0, Math.trunc(fu.used))
-                                : 0
-                            if (used === 0) return s
-                            return { ...s, freeUses: { ...fu, used: 0 } }
-                          })
+                          const nextSpells = resetFreeUsesForRest(c.spells, 'shortRest')
                           return { ...c, spells: nextSpells, slotUsage: { ...prev, pactUsed: 0 } }
                         })
                       }}
@@ -239,42 +243,53 @@ export function SlotsResources(props: {
         </div>
       </div>
 
-      <Button
-        size="sm"
-        variant="secondary"
-        className="mt-2 h-9 w-full"
-        title="Reset (descanso longo)"
-        onClick={() => {
-          updateCharacter(activeCharacter.id, (c) => {
-            const prev = c.slotUsage ?? {}
-            const sorcLevel = c.classes.reduce(
-              (acc, cls) =>
-                acc + (cls.classIndex === 'sorcerer' ? (typeof cls.level === 'number' ? cls.level : 0) : 0),
-              0,
-            )
-            const nextSpells = c.spells.map((s) => {
-              const fu = s.freeUses
-              if (!fu) return s
-              const reset = (fu.reset ?? 'longRest') as RestResetKind
-              if (reset !== 'longRest') return s
-              const used =
-                typeof fu.used === 'number' && Number.isFinite(fu.used)
-                  ? Math.max(0, Math.trunc(fu.used))
-                  : 0
-              if (used === 0) return s
-              return { ...s, freeUses: { ...fu, used: 0 } }
+      <div className="mt-2 flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-9 flex-1"
+          title="Reset (descanso curto)"
+          onClick={() => {
+            updateCharacter(activeCharacter.id, (c) => {
+              const prev = c.slotUsage ?? {}
+              const nextSpells = resetFreeUsesForRest(c.spells, 'shortRest')
+              return {
+                ...c,
+                spells: nextSpells,
+                slotUsage: { ...prev, pactUsed: 0 },
+              }
             })
-            return {
-              ...c,
-              spells: nextSpells,
-              sorceryPointsUsed: sorcLevel > 0 ? 0 : undefined,
-              slotUsage: { ...prev, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-            }
-          })
-        }}
-      >
-        Descanso longo
-      </Button>
+          }}
+        >
+          Descanso curto
+        </Button>
+
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-9 flex-1"
+          title="Reset (descanso longo)"
+          onClick={() => {
+            updateCharacter(activeCharacter.id, (c) => {
+              const prev = c.slotUsage ?? {}
+              const sorcLevel = c.classes.reduce(
+                (acc, cls) =>
+                  acc + (cls.classIndex === 'sorcerer' ? (typeof cls.level === 'number' ? cls.level : 0) : 0),
+                0,
+              )
+              const nextSpells = resetFreeUsesForRest(c.spells, 'longRest')
+              return {
+                ...c,
+                spells: nextSpells,
+                sorceryPointsUsed: sorcLevel > 0 ? 0 : undefined,
+                slotUsage: { ...prev, pactUsed: 0, usedByLevel: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+              }
+            })
+          }}
+        >
+          Descanso longo
+        </Button>
+      </div>
     </>
   )
 }
