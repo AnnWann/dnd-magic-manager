@@ -43,14 +43,13 @@ export function SlotsResources(props: {
 
   return (
     <>
-      <div className="text-xs font-semibold text-textH">Slots</div>
-      <div className="mt-2">
+      <div className="text-xs font-semibold text-textH">
+        Slots
         {slotMeta.spellcastingLevel > 0 ? (
-          <div className="text-[11px] text-text">
-            Nível conjurador: <span className="font-mono text-textH">{slotMeta.spellcastingLevel}</span>
-          </div>
+          <span className="font-normal text-text"> - Nível conjurador: {slotMeta.spellcastingLevel}</span>
         ) : null}
-
+      </div>
+      <div className="mt-2">
         <div className={slotMeta.spellcastingLevel > 0 ? 'mt-1 flex min-w-0 flex-wrap items-end gap-2' : 'flex min-w-0 flex-wrap items-end gap-2'}>
           {Array.from({ length: 9 }, (_, i) => i + 1).map((lvl) => {
             const total = slotMeta.slotsByLevel[lvl] ?? 0
@@ -144,21 +143,6 @@ export function SlotsResources(props: {
                       }}
                     >
                       −
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-7 px-2"
-                      title="Reset (descanso curto)"
-                      onClick={() => {
-                        updateCharacter(activeCharacter.id, (c) => {
-                          const prev = c.slotUsage ?? {}
-                          const nextSpells = resetFreeUsesForRest(c.spells, 'shortRest')
-                          return { ...c, spells: nextSpells, slotUsage: { ...prev, pactUsed: 0 } }
-                        })
-                      }}
-                    >
-                      Curto
                     </Button>
                   </div>
                 </div>
