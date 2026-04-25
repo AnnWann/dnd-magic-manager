@@ -50,14 +50,20 @@ export function SlotsResources(props: {
         ) : null}
       </div>
       <div className="mt-2">
-        <div className={slotMeta.spellcastingLevel > 0 ? 'mt-1 flex min-w-0 flex-wrap items-end gap-2' : 'flex min-w-0 flex-wrap items-end gap-2'}>
+        <div
+          className={
+            slotMeta.spellcastingLevel > 0
+              ? 'mt-1 flex w-full min-w-0 flex-wrap items-end gap-2'
+              : 'flex w-full min-w-0 flex-wrap items-end gap-2'
+          }
+        >
           {Array.from({ length: 9 }, (_, i) => i + 1).map((lvl) => {
             const total = slotMeta.slotsByLevel[lvl] ?? 0
             if (!total) return null
             const used = Math.max(0, Math.trunc(usedByLevel[lvl] ?? 0))
             const remaining = Math.max(0, total - used)
             return (
-              <div key={lvl} className="min-w-[160px] flex-1 rounded-md border border-border bg-bg px-2 py-1">
+              <div key={lvl} className="w-fit max-w-full min-w-0 rounded-md border border-border bg-bg px-2 py-1">
                 <div className="text-[11px] text-text">Círc. {lvl}</div>
                 <div className="mt-0.5 flex items-center gap-2">
                   <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
@@ -108,7 +114,7 @@ export function SlotsResources(props: {
               const used = pactUsed
               const remaining = Math.max(0, total - used)
               return (
-                <div className="min-w-[160px] flex-1 rounded-md border border-border bg-bg px-2 py-1">
+                <div className="w-fit max-w-full min-w-0 rounded-md border border-border bg-bg px-2 py-1">
                   <div className="text-[11px] text-text">Pacto (círc. {slotMeta.pact.slotLevel})</div>
                   <div className="mt-0.5 flex items-center gap-2">
                     <span className="font-mono text-xs text-textH">{remaining}/{total}</span>
@@ -151,7 +157,7 @@ export function SlotsResources(props: {
           ) : null}
 
           {sorceryPointsMax > 0 ? (
-            <div className="min-w-[160px] flex-1 rounded-md border border-border bg-bg px-2 py-1">
+            <div className="w-fit max-w-full min-w-0 rounded-md border border-border bg-bg px-2 py-1">
               <div className="text-[11px] text-text">Metamagia (PF)</div>
               <div className="mt-0.5 flex items-center gap-2">
                 <span className="font-mono text-xs text-textH">{sorceryPointsRemaining}/{sorceryPointsMax}</span>
