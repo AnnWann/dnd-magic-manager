@@ -16,6 +16,10 @@ export type Weapon = Equipment & {
   damage: Die
   modifierAttribute: Attribute
   proficient: boolean
+  /** Tipos de munição que esta instância de arma pode consumir. */
+  compatibleAmmunitionKeys?: string[]
+  /** Munição escolhida para o próximo gasto rápido desta arma. */
+  selectedAmmunitionKey?: string
 }
 
 export type WeaponProperty = {
