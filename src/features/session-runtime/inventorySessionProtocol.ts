@@ -36,6 +36,7 @@ export type SessionInventoryOperation =
   | { type: "character.inventory.bag.toggle"; characterId: string; itemId: string }
   | { type: "character.inventory.currenciesBag.set"; characterId: string; insideBagOfHolding: boolean }
   | { type: "character.inventory.attunement.toggle"; characterId: string; itemId: string }
+  | { type: "character.ammunition.spend"; characterId: string; weaponId: string; ammunitionKey: string; ammunitionName: string; quantity: number }
   | { type: "inventory.item.transfer"; characterId: string; request: TransferItemOperationRequest }
   | { type: "party.item.add"; characterId: string; item: Itemmable }
   | { type: "party.item.update"; characterId: string; itemId: string; item: Itemmable }
