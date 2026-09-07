@@ -38,6 +38,7 @@ import {
   HandItemActionsDialog,
   type HandItemActionsDialogState,
 } from "./weaponAttackCardActionsDialog"
+import { WeaponAmmunitionQuickControl } from "./weaponAmmunitionQuickControl"
 import type { Skill } from "../../../models/sheet/Skills"
 import { SelectSkillModule } from "./skills/selectCharacterSkills"
 import { MinimalCharacterActions } from "./minimalCharacterActions"
@@ -279,7 +280,15 @@ export function MinimalCharacterSheet({
                   const attack = character.getEffectiveWeaponAttackBonus(weapon, baseAttack)
                   const damageBonus = character.getEffectiveWeaponDamageBonus(weapon, character.getEffectiveAttributeModifier(attribute))
                   return (
-                    <CompactWeaponTile key={`${weapon.id}-${index}`} weapon={weapon} attack={attack} damageBonus={damageBonus} onClick={() => setHandDialog({ itemId: weapon.id })} />
+                    <CompactWeaponTile
+                      key={`${weapon.id}-${index}`}
+                      character={character}
+                      weapon={weapon}
+                      attack={attack}
+                      damageBonus={damageBonus}
+                      updateCharacter={updateCharacter}
+                      onClick={() => setHandDialog({ itemId: weapon.id })}
+                    />
                   )
                 })
               ) : (
@@ -355,16 +364,42 @@ function ReadOnlyStat({ label, value }: { label: string; value: string }) {
   return <div className="flex min-h-16 flex-col items-center justify-center rounded-lg border border-accentBorder bg-accentBg px-2 py-2 text-center"><div className="text-[10px] uppercase tracking-wide text-textMuted">{label}</div><div className="mt-1 text-lg font-bold text-textH">{value}</div></div>
 }
 
-function CompactWeaponTile({ weapon, attack, damageBonus, onClick }: { weapon: Weapon; attack: number; damageBonus: number; onClick: () => void }) {
+function CompactWeaponTile({
+  character,
+  weapon,
+  attack,
+  damageBonus,
+  updateCharacter,
+  onClick,
+}: {
+  character: CharacterTemplate
+  weapon: Weapon
+  attack: number
+  damageBonus: number
+  updateCharacter: Props["updateCharacter"]
+  onClick: () => void
+}) {
   const die = getWeaponDamageDie(weapon) ?? weapon.damage
   const damage = `${die.quantity}${die.sides}${damageBonus !== 0 ? ` ${formatSigned(damageBonus)}` : ""}`
   const hands = weapon.wieldedTwoHanded ? 2 : 1
   return (
-    <button type="button" title="Abrir opções de empunhadura, guardar ou largar" onClick={onClick} className="min-w-0 rounded-lg border border-border bg-bg-subtle px-2 py-2 text-center transition-colors hover:border-accentBorder hover:bg-accentBg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-      <div className="flex min-w-0 items-center justify-center gap-1 text-[10px] uppercase tracking-wide text-textMuted"><span className="truncate">{weapon.name || "Arma"}{isWeaponImprovisedGrip(weapon) ? " · imp." : ""}</span><span className="shrink-0 rounded-full border border-accentBorder bg-accentBg px-1 py-0.5 text-[9px] font-semibold text-accent">{hands}M</span></div>
-      <div className="mt-1 text-lg font-bold text-textH">{formatSigned(attack)}</div>
-      <div className="text-[10px] font-medium text-textMuted">{damage}</div>
-    </button>
+    <div className="min-w-0 rounded-lg border border-border bg-bg-subtle px-2 py-2 text-center transition-colors hover:border-accentBorder">
+      <button
+        type="button"
+        title="Abrir opções de empunhadura, guardar ou largar"
+        onClick={onClick}
+        className="w-full min-w-0 rounded-md text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <div className="flex min-w-0 items-center justify-center gap-1 text-[10px] uppercase tracking-wide text-textMuted"><span className="truncate">{weapon.name || "Arma"}{isWeaponImprovisedGrip(weapon) ? " · imp." : ""}</span><span className="shrink-0 rounded-full border border-accentBorder bg-accentBg px-1 py-0.5 text-[9px] font-semibold text-accent">{hands}M</span></div>
+        <div className="mt-1 text-lg font-bold text-textH">{formatSigned(attack)}</div>
+        <div className="text-[10px] font-medium text-textMuted">{damage}</div>
+      </button>
+      <WeaponAmmunitionQuickControl
+        character={character}
+        weapon={weapon}
+        updateCharacter={updateCharacter}
+      />
+    </div>
   )
 }
 
