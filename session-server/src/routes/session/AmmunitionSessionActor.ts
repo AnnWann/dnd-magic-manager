@@ -14,6 +14,7 @@ import {
   createSessionLogRecord,
   readSessionLog,
 } from "./sessionLog";
+import { broadcastVisibilityFiltered } from "./visibilityDelivery";
 
 const ABILITIES_STATE_KEY = "abilities-state";
 const HP_STATE_KEY = "hp-state";
@@ -197,7 +198,7 @@ export class SessionActor extends CreatureDropSessionActor {
       maxRecords: MAX_CHARACTER_STATE_LOG_RECORDS,
     });
 
-    broadcast(this.ctx.getWebSockets(), {
+    broadcastVisibilityFiltered(this.ctx.getWebSockets(), {
       type: "session.abilities.updated",
       character: abilities[operation.characterId],
     });
